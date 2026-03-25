@@ -6,6 +6,7 @@ const express = require("express");
 const http = require("http");
 const cors = require("cors");
 const { userJoin, getUsers, userLeave } = require("./utils/user");
+const authRoutes = require("./routes/auth");
 
 const app = express();
 const server = http.createServer(app);
@@ -14,16 +15,6 @@ const io = socketIO(server);
 
 // serve on port
 const PORT = process.env.PORT || 5000;
-
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("MongoDB Connected");
-
-    server.listen(PORT, () =>
-      console.log(`server is listening on http://localhost:${PORT}`)
-    );
-  })
-  .catch(err => console.log(err));
 
 app.use(cors());
 app.use((req, res, next) => {
@@ -34,6 +25,9 @@ app.use((req, res, next) => {
   );
   next();
 });
+
+app.use(express.json());
+app.use("/api/auth", authRoutes);
 
 app.get("/", (req, res) => {
   res.send("server");
@@ -76,3 +70,13 @@ io.on("connection", (socket) => {
     }
   });
 });
+
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => {
+    console.log("MongoDB Connected");
+
+    server.listen(PORT, () =>
+      console.log(`server is listening on http://localhost:${PORT}`)
+    );
+  })
+  .catch(err => console.log(err));
