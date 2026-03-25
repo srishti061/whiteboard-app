@@ -37,29 +37,44 @@ app.get("/", (req, res) => {
 // socket.io
 let imageUrl, userRoom;
 io.on("connection", (socket) => {
-  socket.on("user-joined", async (data) => {    //This listens for the "user-joined" event 
-    const { roomId, userId, userName, host, presenter } = data;
-    userRoom = roomId;
-    const user = userJoin(socket.id, userName, roomId, host, presenter);
-    const roomUsers = getUsers(user.room);
-    socket.join(user.room);
-    const board = await Board.findOne({ roomId });
+  socket.on("user-joined", async (data) => {
+  const { roomId, userName, token } = data;
 
-if (board) {
-  socket.emit("canvasImage", board.imageUrl);
-}
-    socket.emit("message", {    //sending a welcome message to the user who just joined.
-      message: "Welcome to ChatRoom",
-    });
-    socket.broadcast.to(user.room).emit("message", {     //Broadcasts a message to all sockets in the same room except the current socket,
-      message: `${user.username} has joined`,
-    }); 
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    socket.userId = decoded.id;
+  } catch (err) {
+    socket.emit("error", "Unauthorized");
+    return;
+  }
 
-    io.to(user.room).emit("users", roomUsers);   //sending the list of users in that room.
-    if (!board) {
-  io.to(user.room).emit("canvasImage", imageUrl);
-}   // sending some canvas image
+  userRoom = roomId;
+
+  const user = userJoin(socket.id, userName, roomId);
+  const roomUsers = getUsers(user.room);
+
+  socket.join(user.room);
+
+  const board = await Board.findOne({ roomId });
+
+  if (board) {
+    socket.emit("canvasImage", board.imageUrl);
+  }
+
+  socket.emit("message", {
+    message: "Welcome to ChatRoom",
   });
+
+  socket.broadcast.to(user.room).emit("message", {
+    message: `${user.username} has joined`,
+  });
+
+  io.to(user.room).emit("users", roomUsers);
+
+  if (!board) {
+    io.to(user.room).emit("canvasImage", imageUrl);
+  }
+});
 
   socket.on("drawing", async (data) => {
     console.log("DRAWING EVENT RECEIVED"); 
