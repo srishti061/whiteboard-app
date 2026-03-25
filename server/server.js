@@ -7,6 +7,7 @@ const http = require("http");
 const cors = require("cors");
 const { userJoin, getUsers, userLeave } = require("./utils/user");
 const authRoutes = require("./routes/auth");
+const Board = require("./models/Board");
 
 const app = express();
 const server = http.createServer(app);
@@ -36,12 +37,17 @@ app.get("/", (req, res) => {
 // socket.io
 let imageUrl, userRoom;
 io.on("connection", (socket) => {
-  socket.on("user-joined", (data) => {    //This listens for the "user-joined" event 
+  socket.on("user-joined", async (data) => {    //This listens for the "user-joined" event 
     const { roomId, userId, userName, host, presenter } = data;
     userRoom = roomId;
     const user = userJoin(socket.id, userName, roomId, host, presenter);
     const roomUsers = getUsers(user.room);
     socket.join(user.room);
+    const board = await Board.findOne({ roomId });
+
+if (board) {
+  socket.emit("canvasImage", board.imageUrl);
+}
     socket.emit("message", {    //sending a welcome message to the user who just joined.
       message: "Welcome to ChatRoom",
     });
@@ -50,13 +56,24 @@ io.on("connection", (socket) => {
     }); 
 
     io.to(user.room).emit("users", roomUsers);   //sending the list of users in that room.
-    io.to(user.room).emit("canvasImage", imageUrl);   // sending some canvas image
+    if (!board) {
+  io.to(user.room).emit("canvasImage", imageUrl);
+}   // sending some canvas image
   });
 
-  socket.on("drawing", (data) => {
-    imageUrl = data;
-    socket.broadcast.to(userRoom).emit("canvasImage", imageUrl);
-  });
+  socket.on("drawing", async (data) => {
+    console.log("DRAWING EVENT RECEIVED"); 
+  imageUrl = data;
+
+  // save to DB
+  await Board.findOneAndUpdate(
+    { roomId: userRoom },
+    { imageUrl },
+    { upsert: true }
+  );
+
+  socket.broadcast.to(userRoom).emit("canvasImage", imageUrl);
+});
 
   socket.on("disconnect", () => {
     const userLeaves = userLeave(socket.id);
