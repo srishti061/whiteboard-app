@@ -1,47 +1,41 @@
 import React, { useRef } from "react";
-import { Socket } from "socket.io-client";
 
 const Sidebar = ({ users, user, socket }) => {
-  const sideBarRef = useRef(null);  // Create a reference for the sidebar element
+  const ref = useRef(null);
 
-  const openSideBar = () => {
-    sideBarRef.current.style.left = 0;
-  };
-  const closeSideBar = () => {
-    sideBarRef.current.style.left = -100 + "%";
-  };
+  const open  = () => { ref.current.style.left = "0"; };
+  const close = () => { ref.current.style.left = "-260px"; };
+
   return (
     <>
-      <button
-        className="btn btn-dark btn-sm"
-        onClick={openSideBar}
-        style={{ position: "absolute", top: "5%", left: "5%" }}   //users button styling
-      >
-        Users
+      {/* Fixed toggle button */}
+      <button className="users-btn" onClick={open}>
+        👥 Users
+        <span className="users-btn-count">{users.length}</span>
       </button>
-      <div
-        className="position-fixed pt-2 h-100 bg-dark"
-        ref={sideBarRef}
-        style={{
-          width: "150px",
-          left: "-100%",    //initial style of side bar to be hidden 
-          transition: "0.5s linear",  //transistion for smooth operation
-          zIndex: "9999",
-        }}
-      >
-        <button
-          className="btn btn-block border-0 form-control rounded-0 btn-light"
-          onClick={closeSideBar}
-        >
-          Close
-        </button>
-        <div className="w-100 mt-5">
-          {users.map((usr, index) => (
-            <p key={index} className="text-white text-center py-2">
-              {usr.username}
-              {usr.id === socket.id && " - (You)"}
-            </p>
-          ))}
+
+      {/* Slide-in panel */}
+      <div className="sidebar" ref={ref}>
+        <div className="sidebar-head">
+          <span className="sidebar-head-title">Participants</span>
+          <button className="sidebar-close" onClick={close}>✕</button>
+        </div>
+
+        <div className="sidebar-count">{users.length} in room</div>
+
+        <div className="sidebar-list">
+          {users.map((usr, i) => {
+            const isYou = usr.id === socket.id;
+            const initials = (usr.username || "?")
+              .split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+            return (
+              <div key={i} className="sidebar-user">
+                <div className="s-avatar">{initials}</div>
+                <span className="s-name">{usr.username}</span>
+                {isYou && <span className="s-you">You</span>}
+              </div>
+            );
+          })}
         </div>
       </div>
     </>
@@ -49,6 +43,3 @@ const Sidebar = ({ users, user, socket }) => {
 };
 
 export default Sidebar;
-
-//when we click users button -->open side bar event triggers that change the sidebarRef left style to 0 make it for view in scrren then transition
-//ocours ...
