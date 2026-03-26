@@ -5,6 +5,7 @@ import ClientRoom from "./ClientRoom";
 import JoinCreateRoom from "./JoinCreateRoom";
 import Room from "./Room";                         //importing components
 import Sidebar from "./Sidebar";
+import Login from "./Login";
 
 import "./style.css";
 
@@ -23,6 +24,9 @@ const App = () => {
   const [roomJoined, setRoomJoined] = useState(false);  //to determine if a room has been joined. 
   const [user, setUser] = useState({});  // to store user information.
   const [users, setUsers] = useState([]);   //store the list of users.
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("token"));
+
+
 
   const uuid = () => {    //uuid(unique identifier)-function to generate unique id for for room IDs.
     var S4 = () => {
@@ -45,43 +49,77 @@ const App = () => {
   };
 
   useEffect(() => {
-    if (roomJoined) {
-      socket.emit("user-joined", user);   //whenever new user joins the user-joined event will get triggered.
+  if (roomJoined) {
+    const token = localStorage.getItem("token"); 
+
+    if (!token) {
+      alert("Please login first");
+      setRoomJoined(false);
+      return;
     }
-  }, [roomJoined]);
+
+    socket.emit("user-joined", {
+      ...user,
+      token,
+    });
+  }
+}, [roomJoined]);
+
+// 👉 ADD THIS NEW useEffect RIGHT BELOW
+useEffect(() => {
+  socket.on("error", (msg) => {
+    alert(msg);
+
+    // 👇 ADD THIS
+    if (msg === "Unauthorized") {
+      localStorage.removeItem("token");
+      setIsLoggedIn(false);
+    }
+
+    setRoomJoined(false);
+  });
+
+  return () => {
+    socket.off("error");
+  };
+}, []); 
+
 
   return (
-    <div className="home">
-      <ToastContainer />
-      {roomJoined ? (       // Conditional rendering based on whether a room has been joined:
-        <>
-          <Sidebar users={users} user={user} socket={socket} />
-          {user.presenter ? (    //conditional rendering based on whether the user is a presenter
-            <Room
-              userNo={userNo}
-              user={user}
-              socket={socket}                //for presenter
-              setUsers={setUsers}
-              setUserNo={setUserNo}
-            />
-          ) : (
-            <ClientRoom
-              userNo={userNo}
-              user={user}                 //for client
-              socket={socket}
-              setUsers={setUsers}
-              setUserNo={setUserNo}
-            />
-          )}
-        </>
-      ) : (
-        <JoinCreateRoom
-          uuid={uuid}
-          setRoomJoined={setRoomJoined}
-          setUser={setUser}
-        />
-      )}
-    </div>
-  );
+  <div className="home">
+    <ToastContainer />
+
+    {!isLoggedIn ? (
+      <Login setUser={setIsLoggedIn} />
+    ) : roomJoined ? (
+      <>
+        <Sidebar users={users} user={user} socket={socket} />
+        {user.presenter ? (
+          <Room
+            userNo={userNo}
+            user={user}
+            socket={socket}
+            setUsers={setUsers}
+            setUserNo={setUserNo}
+          />
+        ) : (
+          <ClientRoom
+            userNo={userNo}
+            user={user}
+            socket={socket}
+            setUsers={setUsers}
+            setUserNo={setUserNo}
+          />
+        )}
+      </>
+    ) : (
+      <JoinCreateRoom
+        uuid={uuid}
+        setRoomJoined={setRoomJoined}
+        setUser={setUser}
+      />
+    )}
+  </div>
+);
 };
 export default App;

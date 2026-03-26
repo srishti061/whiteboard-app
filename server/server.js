@@ -13,6 +13,7 @@ const app = express();
 const server = http.createServer(app);
 const socketIO = require("socket.io");
 const io = socketIO(server); 
+const jwt = require("jsonwebtoken");
 
 // serve on port
 const PORT = process.env.PORT || 5000;
@@ -38,7 +39,7 @@ app.get("/", (req, res) => {
 let imageUrl, userRoom;
 io.on("connection", (socket) => {
   socket.on("user-joined", async (data) => {
-  const { roomId, userName, token } = data;
+  const { roomId, userId, userName, host, presenter, token } = data;
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -48,9 +49,9 @@ io.on("connection", (socket) => {
     return;
   }
 
-  userRoom = roomId;
+  socket.userRoom = roomId;
 
-  const user = userJoin(socket.id, userName, roomId);
+  const user = userJoin(socket.id, userName, roomId, host, presenter);
   const roomUsers = getUsers(user.room);
 
   socket.join(user.room);
