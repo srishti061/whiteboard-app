@@ -11,16 +11,20 @@ const Board      = require("./models/Board");
 
 const app    = express();
 const server = http.createServer(app);
-const FRONTEND_URL = "https://whiteboard-app-snowy.vercel.app/"; // your actual Vercel URL
+const FRONTEND_URL = "https://whiteboard-app-snowy.vercel.app"; // no trailing slash
+
+const PORT = process.env.PORT || 5000;
 
 const io = require("socket.io")(server, {
   cors: { origin: FRONTEND_URL, methods: ["GET", "POST"] },
 });
-app.use(cors({ origin: FRONTEND_URL }));
 
-const PORT = process.env.PORT || 5000;
-
-app.use(cors());
+// ONE cors call only, before routes
+app.use(cors({
+  origin: FRONTEND_URL,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+}));
 app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.get("/", (_, res) => res.send("server"));
