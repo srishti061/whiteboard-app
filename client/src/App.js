@@ -8,7 +8,7 @@ import Sidebar from "./Sidebar";
 import Login from "./Login";
 import "./style.css";
 
-const server = "http://localhost:5000";
+const server = "https://whiteboard-app.onrender.com";
 const connectionOptions = {
   "force new connection": true,
   reconnectionAttempts: "Infinity",

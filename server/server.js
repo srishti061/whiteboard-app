@@ -11,9 +11,12 @@ const Board      = require("./models/Board");
 
 const app    = express();
 const server = http.createServer(app);
-const io     = require("socket.io")(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+const FRONTEND_URL = "https://whiteboard-app-black-kappa.vercel.app"; // your actual Vercel URL
+
+const io = require("socket.io")(server, {
+  cors: { origin: FRONTEND_URL, methods: ["GET", "POST"] },
 });
+app.use(cors({ origin: FRONTEND_URL }));
 
 const PORT = process.env.PORT || 5000;
 
