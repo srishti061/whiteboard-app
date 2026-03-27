@@ -11,10 +11,12 @@ const Board      = require("./models/Board");
 
 const app    = express();
 const server = http.createServer(app);
+const FRONTEND_URL = "https://whiteboard-app-snowy.vercel.app/"; // your actual Vercel URL
+
 const io = require("socket.io")(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  cors: { origin: FRONTEND_URL, methods: ["GET", "POST"] },
 });
-app.use(cors());
+app.use(cors({ origin: FRONTEND_URL }));
 
 const PORT = process.env.PORT || 5000;
 
