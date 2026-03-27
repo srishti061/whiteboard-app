@@ -12,18 +12,24 @@ const Login = ({ setUser, theme, toggleTheme }) => {
     setLoading(true);
     try {
       if (isLogin) {
-        const res = await axios.post("http://localhost:5000/api/auth/login", {
-          email,
-          password,
-        });
+        const res = await axios.post(
+          "https://whiteboard-app-ic5d.onrender.com/api/auth/login",
+          {
+            email,
+            password,
+          },
+        );
         localStorage.setItem("token", res.data.token);
         setUser(true);
       } else {
-        await axios.post("http://localhost:5000/api/auth/signup", {
-          username,
-          email,
-          password,
-        });
+        await axios.post(
+          "https://whiteboard-app-ic5d.onrender.com/api/auth/signup",
+          {
+            username,
+            email,
+            password,
+          },
+        );
         alert("Signup successful! Please sign in.");
         setIsLogin(true);
       }

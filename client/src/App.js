@@ -7,6 +7,7 @@ import Room from "./Room";
 import Sidebar from "./Sidebar";
 import Login from "./Login";
 import "./style.css";
+import SERVER from "./config";
 
 const server = "https://whiteboard-app-ic5d.onrender.com";
 const connectionOptions = {
