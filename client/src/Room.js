@@ -48,6 +48,14 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
     { id: "rect",   icon: "▭", label: "Rect"   },
   ];
 
+  const downloadCanvas = () => {
+  const canvas = canvasRef.current;
+  const link   = document.createElement("a");
+  link.download = `whiteboard-${Date.now()}.png`;
+  link.href     = canvas.toDataURL("image/png");
+  link.click();
+};
+
   return (
     <div className="drawing-page">
       <div className="toolbar">
@@ -83,10 +91,14 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
 
         <button className="tb-btn kill" onClick={clearCanvas}>✕ Clear</button>
 
+<button className="tb-btn" onClick={downloadCanvas}>
+  ↓ Download
+</button>
+
         <div className="tb-sep" />
 
         {/* Theme toggle */}
-        <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+        <button className="tb-theme-toggle" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
 

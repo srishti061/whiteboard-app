@@ -11,7 +11,16 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTh
   const imgRef        = useRef(null);
   const colorIndexRef = useRef({});
   const nextColorRef  = useRef(0);
-  const [cursors, setCursors] = useState({});
+  const [cursors, setCursors] = useState({}); 
+
+  const downloadCanvas = () => {
+  const img  = imgRef.current;
+  if (!img || !img.src || img.src === window.location.href) return;
+  const link = document.createElement("a");
+  link.download = `whiteboard-${Date.now()}.png`;
+  link.href     = img.src;
+  link.click();
+};
 
   useEffect(() => {
     socket.on("message", (d) => toast.info(d.message));
@@ -62,7 +71,13 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTh
           👁 View only
         </span>
 
+        <div className="tb-sep" /> 
+
         <div className="tb-sep" />
+
+<button className="tb-btn" onClick={downloadCanvas}>
+  ↓ Download
+</button>
 
         {/* ✅ Fix 1: use tb-theme-toggle, not theme-toggle, so it stays in toolbar flow */}
         <button className="tb-theme-toggle" onClick={toggleTheme} title="Toggle theme">
