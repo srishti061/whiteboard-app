@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Canvas from "./Canvas";
 
-const Room = ({ userNo, socket, setUsers, setUserNo }) => {
+const Room = ({ userNo, user, socket, setUsers, setUserNo }) => {
   const canvasRef = useRef(null);
   const ctx       = useRef(null);
   const [color, setColor]       = useState("#000000");
@@ -10,18 +10,29 @@ const Room = ({ userNo, socket, setUsers, setUserNo }) => {
   const [history, setHistory]   = useState([]);
   const [tool, setTool]         = useState("pencil");
 
-  useEffect(() => { socket.on("message", (d) => toast.info(d.message)); }, []);
+  useEffect(() => {
+    socket.on("message", (d) => toast.info(d.message));
+  }, []);
+
   useEffect(() => {
     socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
   }, []);
 
-  const clearCanvas = () => {
-    const canvas  = canvasRef.current;
-    const context = canvas.getContext("2d");
-    context.fillStyle = "white";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    setElements([]);
-  };
+  // Listen for clear from server (synced to all clients)
+  useEffect(() => {
+    socket.on("clear", () => {
+      const canvas  = canvasRef.current;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "white";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      setElements([]);
+      setHistory([]);
+    });
+    return () => socket.off("clear");
+  }, []);
+
+  // Emit clear to server → server broadcasts to everyone
+  const clearCanvas = () => socket.emit("clear");
 
   const undo = () => {
     setHistory((p) => [...p, elements[elements.length - 1]]);
@@ -41,8 +52,6 @@ const Room = ({ userNo, socket, setUsers, setUserNo }) => {
 
   return (
     <div className="drawing-page">
-
-      {/* ── Toolbar ── */}
       <div className="toolbar">
 
         <div className="color-pill">
@@ -54,8 +63,11 @@ const Room = ({ userNo, socket, setUsers, setUserNo }) => {
         <div className="tb-sep" />
 
         {tools.map((t) => (
-          <button key={t.id} className={`tb-btn ${tool === t.id ? "on" : ""}`}
-            onClick={() => setTool(t.id)}>
+          <button
+            key={t.id}
+            className={`tb-btn ${tool === t.id ? "on" : ""}`}
+            onClick={() => setTool(t.id)}
+          >
             {t.icon} {t.label}
           </button>
         ))}
@@ -79,10 +91,17 @@ const Room = ({ userNo, socket, setUsers, setUserNo }) => {
         </div>
       </div>
 
-      {/* ── Canvas ── */}
       <div className="canvas-wrapper">
-        <Canvas canvasRef={canvasRef} ctx={ctx} color={color}
-          setElements={setElements} elements={elements} tool={tool} socket={socket} />
+        <Canvas
+          canvasRef={canvasRef}
+          ctx={ctx}
+          color={color}
+          setElements={setElements}
+          elements={elements}
+          tool={tool}
+          socket={socket}
+          user={user}
+        />
       </div>
     </div>
   );

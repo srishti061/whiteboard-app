@@ -1,115 +1,147 @@
 require('dotenv').config();
-console.log("MONGO_URI:", process.env.MONGO_URI);
 const mongoose = require('mongoose');
+const express  = require("express");
+const http     = require("http");
+const cors     = require("cors");
+const jwt      = require("jsonwebtoken");
 
-const express = require("express");
-const http = require("http");
-const cors = require("cors");
 const { userJoin, getUsers, userLeave } = require("./utils/user");
 const authRoutes = require("./routes/auth");
-const Board = require("./models/Board");
+const Board      = require("./models/Board");
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
-const socketIO = require("socket.io");
-const io = socketIO(server); 
-const jwt = require("jsonwebtoken");
+const io     = require("socket.io")(server, {
+  cors: { origin: "*", methods: ["GET", "POST"] },
+});
 
-// serve on port
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
-  );
-  next();
-});
-
 app.use(express.json());
 app.use("/api/auth", authRoutes);
+app.get("/", (_, res) => res.send("server"));
 
-app.get("/", (req, res) => {
-  res.send("server");
-});
+// In-memory store of latest canvas per room (avoids DB read on every join)
+const roomCanvases = {};
 
-// socket.io
-let imageUrl, userRoom;
 io.on("connection", (socket) => {
+
+  // ── Join room ──────────────────────────────────────────────────────────────
   socket.on("user-joined", async (data) => {
-  const { roomId, userId, userName, host, presenter, token } = data;
+    const { roomId, userName, host, presenter, token } = data;
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    socket.userId = decoded.id;
-  } catch (err) {
-    socket.emit("error", "Unauthorized");
-    return;
-  }
+    try {
+      jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      socket.emit("error", "Unauthorized");
+      return;
+    }
 
-  socket.userRoom = roomId;
+    socket.userRoom  = roomId;
+    socket.presenter = presenter;
 
-  const user = userJoin(socket.id, userName, roomId, host, presenter);
-  const roomUsers = getUsers(user.room);
+    const user      = userJoin(socket.id, userName, roomId, host, presenter);
+    const roomUsers = getUsers(roomId);
+    socket.join(roomId);
 
-  socket.join(user.room);
+    // Send existing canvas to the new joiner:
+    // 1. Check in-memory first (fastest)
+    // 2. Fall back to DB
+    if (roomCanvases[roomId]) {
+      socket.emit("canvasImage", roomCanvases[roomId]);
+    } else {
+      const board = await Board.findOne({ roomId });
+      if (board && board.imageUrl) {
+        roomCanvases[roomId] = board.imageUrl;
+        socket.emit("canvasImage", board.imageUrl);
+      }
+    }
 
-  const board = await Board.findOne({ roomId });
-
-  if (board) {
-    socket.emit("canvasImage", board.imageUrl);
-  }
-
-  socket.emit("message", {
-    message: "Welcome to ChatRoom",
+    socket.emit("message", { message: "Welcome to ChatRoom" });
+    socket.broadcast.to(roomId).emit("message", {
+      message: `${user.username} has joined`,
+    });
+    io.to(roomId).emit("users", roomUsers);
   });
 
-  socket.broadcast.to(user.room).emit("message", {
-    message: `${user.username} has joined`,
+  // ── Drawing (presenter sends full canvas image on every stroke update) ──────
+  // We throttle DB writes — only save on stroke end (save-snapshot event)
+  // But broadcast immediately so viewers see updates in near-realtime
+  socket.on("drawing", (data) => {
+    const roomId = socket.userRoom;
+    if (!roomId) return;
+
+    // Cache in memory for instant delivery to new joiners
+    roomCanvases[roomId] = data;
+
+    // Broadcast to everyone else in the room immediately
+    socket.broadcast.to(roomId).emit("canvasImage", data);
   });
 
-  io.to(user.room).emit("users", roomUsers);
+  // ── Save to DB only on mouseUp (not every mousemove) ─────────────────────
+  socket.on("save-snapshot", async (data) => {
+    const roomId = socket.userRoom;
+    if (!roomId) return;
+    roomCanvases[roomId] = data;
+    await Board.findOneAndUpdate(
+      { roomId },
+      { imageUrl: data },
+      { upsert: true }
+    );
+  });
 
-  if (!board) {
-    io.to(user.room).emit("canvasImage", imageUrl);
-  }
-});
+  // ── Clear canvas ───────────────────────────────────────────────────────────
+  socket.on("clear", async () => {
+    const roomId = socket.userRoom;
+    if (!roomId) return;
+    roomCanvases[roomId] = "";
+    await Board.findOneAndUpdate({ roomId }, { imageUrl: "" });
+    io.to(roomId).emit("clear");
+  });
 
-  socket.on("drawing", async (data) => {
-    console.log("DRAWING EVENT RECEIVED"); 
-  imageUrl = data;
+  // ── Cursor movement ────────────────────────────────────────────────────────
+  socket.on("cursor-move", (data) => {
+    const roomId = socket.userRoom;
+    if (!roomId) return;
+    socket.broadcast.to(roomId).emit("cursor-move", {
+      socketId: socket.id,
+      x:        data.x,
+      y:        data.y,
+      username: data.username,
+    });
+  });
 
-  // save to DB
-  await Board.findOneAndUpdate(
-    { roomId: userRoom },
-    { imageUrl },
-    { upsert: true }
-  );
+  socket.on("cursor-leave", () => {
+    const roomId = socket.userRoom;
+    if (!roomId) return;
+    socket.broadcast.to(roomId).emit("cursor-leave", { socketId: socket.id });
+  });
 
-  socket.broadcast.to(userRoom).emit("canvasImage", imageUrl);
-});
-
+  // ── Disconnect ─────────────────────────────────────────────────────────────
   socket.on("disconnect", () => {
-    const userLeaves = userLeave(socket.id);
-    const roomUsers = getUsers(userRoom);
+    const roomId   = socket.userRoom;
+    const leftUser = userLeave(socket.id);
 
-    if (userLeaves) {
-      io.to(userLeaves.room).emit("message", {
-        message: `${userLeaves.username} left the chat`,
+    if (leftUser) {
+      io.to(leftUser.room).emit("message", {
+        message: `${leftUser.username} left the chat`,
       });
-      io.to(userLeaves.room).emit("users", roomUsers);
+      io.to(leftUser.room).emit("users", getUsers(roomId));
+    }
+
+    if (roomId) {
+      socket.broadcast.to(roomId).emit("cursor-leave", { socketId: socket.id });
     }
   });
 });
 
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB Connected");
-
     server.listen(PORT, () =>
-      console.log(`server is listening on http://localhost:${PORT}`)
+      console.log(`Server running on http://localhost:${PORT}`)
     );
   })
-  .catch(err => console.log(err));
+  .catch((err) => console.error(err));

@@ -1,58 +1,134 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
-const ClientRoom = ({ userNo, socket, setUsers, setUserNo }) => {
-  const imgRef = useRef(null);
+const TOOLBAR_H = 54;
+const CURSOR_COLORS = [
+  "#7c6dfa", "#f87171", "#34d399", "#fbbf24",
+  "#60a5fa", "#f472b6", "#a3e635", "#fb923c",
+];
+
+const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo }) => {
+  const imgRef        = useRef(null);
+  const wrapperRef    = useRef(null);
+  const [cursors, setCursors] = useState({});
+  const colorIndexRef = useRef({});
+  const nextColorRef  = useRef(0);
 
   useEffect(() => {
-    socket.on("message", (data) => {
-      toast.info(data.message);
+    socket.on("message", (d) => toast.info(d.message));
+  }, []);
+
+  useEffect(() => {
+    socket.on("users", (d) => {
+      setUsers(d);
+      setUserNo(d.length);
     });
   }, []);
 
   useEffect(() => {
-    socket.on("users", (data) => {
-      setUsers(data);
-      setUserNo(data.length);
-    });
-  }, []);
-
-  useEffect(() => {
+    // Receive canvas image from presenter
     socket.on("canvasImage", (data) => {
-      imgRef.current.src = data;
+      if (imgRef.current) imgRef.current.src = data;
     });
+
+    // Clear event
+    socket.on("clear", () => {
+      if (imgRef.current) imgRef.current.src = "";
+    });
+
+    // Live cursors
+    socket.on("cursor-move", ({ socketId, x, y, username }) => {
+      if (!colorIndexRef.current[socketId]) {
+        colorIndexRef.current[socketId] =
+          CURSOR_COLORS[nextColorRef.current % CURSOR_COLORS.length];
+        nextColorRef.current++;
+      }
+      setCursors((prev) => ({
+        ...prev,
+        [socketId]: { x, y, username, color: colorIndexRef.current[socketId] },
+      }));
+    });
+
+    socket.on("cursor-leave", ({ socketId }) => {
+      setCursors((prev) => {
+        const next = { ...prev };
+        delete next[socketId];
+        return next;
+      });
+    });
+
+    return () => {
+      socket.off("canvasImage");
+      socket.off("clear");
+      socket.off("cursor-move");
+      socket.off("cursor-leave");
+    };
   }, []);
 
   return (
-    <div className="drawing-area">
-      {/* Toolbar */}
+    <div className="drawing-page">
+
+      {/* Minimal toolbar for viewers */}
       <div className="toolbar">
-        <span className="toolbar-title">Drawing App</span>
-        <div className="online-badge">
+        <span className="tb-btn" style={{ cursor: "default", opacity: 0.5 }}>
+          👁 View only
+        </span>
+        <div className="online-pill" style={{ marginLeft: "auto" }}>
           <div className="online-dot" />
           {userNo} online
         </div>
       </div>
 
-      {/* Canvas viewer */}
-      <div className="canvas-wrapper">
-        <div
+      {/* Full screen canvas image + cursor overlay */}
+      <div
+        ref={wrapperRef}
+        style={{
+          flex: 1,
+          width: "100%",
+          height: `calc(100vh - ${TOOLBAR_H}px)`,
+          overflow: "hidden",
+          position: "relative",
+          background: "white",
+        }}
+      >
+        <img
+          ref={imgRef}
+          src=""
+          alt="whiteboard"
           style={{
-            background: "white",
-            borderRadius: "12px",
-            overflow: "hidden",
-            width: "800px",
-            height: "500px",
-            boxShadow: "0 8px 40px rgba(0,0,0,0.5)",
+            width: "100%",
+            height: "100%",
+            objectFit: "fill",   // stretch to fill exactly like the canvas
+            display: "block",
           }}
-        >
-          <img
-            ref={imgRef}
-            src=""
-            alt="whiteboard"
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-          />
-        </div>
+        />
+
+        {/* Remote cursors */}
+        {Object.entries(cursors).map(([id, { x, y, username, color: c }]) => (
+          <div
+            key={id}
+            style={{
+              position: "absolute", left: x, top: y,
+              pointerEvents: "none", zIndex: 50,
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" style={{ display: "block" }}>
+              <path
+                d="M2 2L2 16L6 12L9 18L11 17L8 11L14 11Z"
+                fill={c} stroke="white" strokeWidth="1"
+              />
+            </svg>
+            <div style={{
+              background: c, color: "white",
+              fontSize: "11px", fontWeight: "600",
+              padding: "2px 7px", borderRadius: "4px",
+              marginTop: "2px", whiteSpace: "nowrap",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+            }}>
+              {username}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
