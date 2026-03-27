@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 
-const JoinCreateRoom = ({ uuid, setRoomJoined, setUser }) => {
+const JoinCreateRoom = ({
+  uuid,
+  setRoomJoined,
+  setUser,
+  theme,
+  toggleTheme,
+}) => {
   const [roomId, setRoomId] = useState(uuid());
   const [name, setName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
@@ -26,13 +32,22 @@ const JoinCreateRoom = ({ uuid, setRoomJoined, setUser }) => {
 
   return (
     <div className="rooms-page">
+      {/* Theme toggle — top right */}
+      <button
+        className="theme-toggle"
+        onClick={toggleTheme}
+        style={{ position: "fixed", top: 16, right: 16 }}
+      >
+        {theme === "dark" ? "☀️" : "🌙"}
+      </button>
+
       <div className="rooms-header">
         <h1>Realtime Whiteboard</h1>
         <p>Create a new room or join an existing one</p>
       </div>
 
       <div className="rooms-grid">
-        {/* Create */}
+        {/* Create Room */}
         <div className="room-card">
           <div className="room-card-head">
             <div className="room-card-icon">✏️</div>
@@ -63,7 +78,7 @@ const JoinCreateRoom = ({ uuid, setRoomJoined, setUser }) => {
           </button>
         </div>
 
-        {/* Join */}
+        {/* Join Room */}
         <div className="room-card">
           <div className="room-card-head">
             <div className="room-card-icon">🔗</div>

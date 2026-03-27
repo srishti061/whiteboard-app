@@ -7,36 +7,27 @@ const CURSOR_COLORS = [
   "#60a5fa", "#f472b6", "#a3e635", "#fb923c",
 ];
 
-const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo }) => {
+const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme }) => {
   const imgRef        = useRef(null);
-  const wrapperRef    = useRef(null);
-  const [cursors, setCursors] = useState({});
   const colorIndexRef = useRef({});
   const nextColorRef  = useRef(0);
+  const [cursors, setCursors] = useState({});
 
   useEffect(() => {
     socket.on("message", (d) => toast.info(d.message));
   }, []);
 
   useEffect(() => {
-    socket.on("users", (d) => {
-      setUsers(d);
-      setUserNo(d.length);
-    });
+    socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
   }, []);
 
   useEffect(() => {
-    // Receive canvas image from presenter
     socket.on("canvasImage", (data) => {
       if (imgRef.current) imgRef.current.src = data;
     });
-
-    // Clear event
     socket.on("clear", () => {
       if (imgRef.current) imgRef.current.src = "";
     });
-
-    // Live cursors
     socket.on("cursor-move", ({ socketId, x, y, username }) => {
       if (!colorIndexRef.current[socketId]) {
         colorIndexRef.current[socketId] =
@@ -48,7 +39,6 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo }) => {
         [socketId]: { x, y, username, color: colorIndexRef.current[socketId] },
       }));
     });
-
     socket.on("cursor-leave", ({ socketId }) => {
       setCursors((prev) => {
         const next = { ...prev };
@@ -56,7 +46,6 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo }) => {
         return next;
       });
     });
-
     return () => {
       socket.off("canvasImage");
       socket.off("clear");
@@ -68,27 +57,33 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo }) => {
   return (
     <div className="drawing-page">
 
-      {/* Minimal toolbar for viewers */}
       <div className="toolbar">
         <span className="tb-btn" style={{ cursor: "default", opacity: 0.5 }}>
           👁 View only
         </span>
-        <div className="online-pill" style={{ marginLeft: "auto" }}>
+
+        <div className="tb-sep" />
+
+        {/* ✅ Fix 1: use tb-theme-toggle, not theme-toggle, so it stays in toolbar flow */}
+        <button className="tb-theme-toggle" onClick={toggleTheme} title="Toggle theme">
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+
+        <div className="online-pill">
           <div className="online-dot" />
           {userNo} online
         </div>
       </div>
 
-      {/* Full screen canvas image + cursor overlay */}
+      {/* ✅ Fix 2: canvas background uses CSS variable, not hardcoded "white" */}
       <div
-        ref={wrapperRef}
         style={{
           flex: 1,
           width: "100%",
           height: `calc(100vh - ${TOOLBAR_H}px)`,
           overflow: "hidden",
           position: "relative",
-          background: "white",
+          background: "var(--bg-2)",
         }}
       >
         <img
@@ -98,12 +93,11 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo }) => {
           style={{
             width: "100%",
             height: "100%",
-            objectFit: "fill",   // stretch to fill exactly like the canvas
+            objectFit: "fill",
             display: "block",
           }}
         />
 
-        {/* Remote cursors */}
         {Object.entries(cursors).map(([id, { x, y, username, color: c }]) => (
           <div
             key={id}
@@ -119,7 +113,7 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo }) => {
               />
             </svg>
             <div style={{
-              background: c, color: "white",
+              background: c, color: "#fff",
               fontSize: "11px", fontWeight: "600",
               padding: "2px 7px", borderRadius: "4px",
               marginTop: "2px", whiteSpace: "nowrap",

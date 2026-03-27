@@ -24,7 +24,116 @@
   --shadow: 0 8px 40px rgba(0,0,0,0.55);
 }
 
+/* ════════════════════════════════════════════
+   LIGHT THEME OVERRIDES
+═══════════════════════════════════════════ */
+[data-theme="light"] {
+  --bg:           #f4f4f8;
+  --bg-2:         #ffffff;
+  --bg-3:         #eeeef5;
+  --bg-4:         #e4e4ee;
+  --bg-5:         #d8d8e8;
+  --accent:       #6c5ce7;
+  --accent-dim:   rgba(108,92,231,0.12);
+  --accent-border:rgba(108,92,231,0.35);
+  --text-1:       #1a1a2e;
+  --text-2:       #555570;
+  --text-3:       #9090aa;
+  --border:       rgba(0,0,0,0.08);
+  --border-2:     rgba(0,0,0,0.13);
+  --green:        #059669;
+  --red:          #dc2626;
+  --shadow: 0 8px 40px rgba(0,0,0,0.12);
+}
+
+[data-theme="light"] html,
+[data-theme="light"] body,
+[data-theme="light"] #root {
+  background: var(--bg);
+  color: var(--text-1);
+}
+
+/* inputs in light mode */
+[data-theme="light"] input[type=text],
+[data-theme="light"] input[type=email],
+[data-theme="light"] input[type=password] {
+  background: #ffffff;
+  border-color: var(--border-2);
+  color: var(--text-1);
+}
+
+/* scrollbar in light mode */
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: var(--bg-5);
+}
+
+/* Toast in light mode */
+[data-theme="light"] .Toastify__toast {
+  background: #ffffff !important;
+  color: var(--text-1) !important;
+  border-color: var(--border-2) !important;
+}
+
 *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+/* ════════════════════════════════════════════
+   THEME TOGGLE BUTTON
+═══════════════════════════════════════════ */
+.theme-toggle {
+  position: fixed;
+  bottom: 20px;        /* ← was top: 14px */
+  right: 20px;         /* same */
+  top: unset;          /* ← reset top */
+  z-index: 10001;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border-radius: 50%;  /* ← circle looks nicer as a FAB */
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  color: var(--text-1);
+  font-size: 17px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  transition: background .15s, border-color .15s, transform .15s;
+}
+.theme-toggle:hover {
+  background: var(--bg-4);
+  border-color: var(--accent-border);
+  transform: scale(1.08);
+}
+
+/* Remove the login-specific override since position is now unified */
+.login-theme-toggle {
+  bottom: 20px;
+  right: 20px;
+  top: unset;
+}
+
+/* In-toolbar theme toggle — not fixed, stays in flow */
+.tb-theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: var(--r-sm);
+  background: var(--bg-3);
+  border: 1px solid var(--border-2);
+  color: var(--text-1);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.tb-theme-toggle:hover {
+  background: var(--bg-4);
+  border-color: var(--accent-border);
+}
 
 html, body, #root {
   height:100%; width:100%;

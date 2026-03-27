@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-const Login = ({ setUser }) => {
+const Login = ({ setUser, theme, toggleTheme }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -40,6 +40,11 @@ const Login = ({ setUser }) => {
 
   return (
     <div className="login-page">
+      {/* Theme toggle — top right corner */}
+      <button className="theme-toggle login-theme-toggle" onClick={toggleTheme}>
+        {theme === "dark" ? "☀️" : "🌙"}
+      </button>
+
       <div className="login-box">
         <div className="login-brand">
           <div className="login-brand-icon">✏️</div>

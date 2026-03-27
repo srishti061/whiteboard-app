@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Canvas from "./Canvas";
 
-const Room = ({ userNo, user, socket, setUsers, setUserNo }) => {
+const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme }) => {
   const canvasRef = useRef(null);
   const ctx       = useRef(null);
   const [color, setColor]       = useState("#000000");
@@ -18,7 +18,6 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo }) => {
     socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
   }, []);
 
-  // Listen for clear from server (synced to all clients)
   useEffect(() => {
     socket.on("clear", () => {
       const canvas  = canvasRef.current;
@@ -31,7 +30,6 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo }) => {
     return () => socket.off("clear");
   }, []);
 
-  // Emit clear to server → server broadcasts to everyone
   const clearCanvas = () => socket.emit("clear");
 
   const undo = () => {
@@ -84,6 +82,13 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo }) => {
         <div className="tb-sep" />
 
         <button className="tb-btn kill" onClick={clearCanvas}>✕ Clear</button>
+
+        <div className="tb-sep" />
+
+        {/* Theme toggle */}
+        <button className="theme-toggle" onClick={toggleTheme} title="Toggle theme">
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
 
         <div className="online-pill">
           <div className="online-dot" />
