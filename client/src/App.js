@@ -57,7 +57,7 @@ const App = () => {
       setRoomJoined(false);
       return;
     }
-    socket.emit("user-joined", { ...user, token });
+    socket.emit("user-joined", { ...user, userName: user.name, token });
   }, [roomJoined]);
 
   // ── Socket: error handling ────────────────────────────────────────────────

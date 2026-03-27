@@ -22,14 +22,14 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.get("/", (_, res) => res.send("server"));
 
-// In-memory store of latest canvas per room (avoids DB read on every join)
 const roomCanvases = {};
 
 io.on("connection", (socket) => {
 
-  // ── Join room ──────────────────────────────────────────────────────────────
   socket.on("user-joined", async (data) => {
-    const { roomId, userName, host, presenter, token } = data;
+    // ✅ Accept both `userName` and `name` as fallback
+    const { roomId, userName, name, host, presenter, token } = data;
+    const resolvedName = userName || name || "Guest";   // ← fallback chain
 
     try {
       jwt.verify(token, process.env.JWT_SECRET);
@@ -41,13 +41,10 @@ io.on("connection", (socket) => {
     socket.userRoom  = roomId;
     socket.presenter = presenter;
 
-    const user      = userJoin(socket.id, userName, roomId, host, presenter);
+    const user      = userJoin(socket.id, resolvedName, roomId, host, presenter);
     const roomUsers = getUsers(roomId);
     socket.join(roomId);
 
-    // Send existing canvas to the new joiner:
-    // 1. Check in-memory first (fastest)
-    // 2. Fall back to DB
     if (roomCanvases[roomId]) {
       socket.emit("canvasImage", roomCanvases[roomId]);
     } else {
@@ -58,28 +55,22 @@ io.on("connection", (socket) => {
       }
     }
 
-    socket.emit("message", { message: "Welcome to ChatRoom" });
+    socket.emit("message", { message: "Welcome to the room!" });
     socket.broadcast.to(roomId).emit("message", {
-      message: `${user.username} has joined`,
+      message: `${resolvedName} has joined`,
     });
+
+    // ✅ Emit updated user list to ALL in room (including new joiner)
     io.to(roomId).emit("users", roomUsers);
   });
 
-  // ── Drawing (presenter sends full canvas image on every stroke update) ──────
-  // We throttle DB writes — only save on stroke end (save-snapshot event)
-  // But broadcast immediately so viewers see updates in near-realtime
   socket.on("drawing", (data) => {
     const roomId = socket.userRoom;
     if (!roomId) return;
-
-    // Cache in memory for instant delivery to new joiners
     roomCanvases[roomId] = data;
-
-    // Broadcast to everyone else in the room immediately
     socket.broadcast.to(roomId).emit("canvasImage", data);
   });
 
-  // ── Save to DB only on mouseUp (not every mousemove) ─────────────────────
   socket.on("save-snapshot", async (data) => {
     const roomId = socket.userRoom;
     if (!roomId) return;
@@ -91,7 +82,6 @@ io.on("connection", (socket) => {
     );
   });
 
-  // ── Clear canvas ───────────────────────────────────────────────────────────
   socket.on("clear", async () => {
     const roomId = socket.userRoom;
     if (!roomId) return;
@@ -100,7 +90,6 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("clear");
   });
 
-  // ── Cursor movement ────────────────────────────────────────────────────────
   socket.on("cursor-move", (data) => {
     const roomId = socket.userRoom;
     if (!roomId) return;
@@ -118,16 +107,15 @@ io.on("connection", (socket) => {
     socket.broadcast.to(roomId).emit("cursor-leave", { socketId: socket.id });
   });
 
-  // ── Disconnect ─────────────────────────────────────────────────────────────
   socket.on("disconnect", () => {
     const roomId   = socket.userRoom;
     const leftUser = userLeave(socket.id);
 
     if (leftUser) {
       io.to(leftUser.room).emit("message", {
-        message: `${leftUser.username} left the chat`,
+        message: `${leftUser.username} left the room`,
       });
-      io.to(leftUser.room).emit("users", getUsers(roomId));
+      io.to(leftUser.room).emit("users", getUsers(leftUser.room));
     }
 
     if (roomId) {
