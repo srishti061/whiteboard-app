@@ -32,7 +32,6 @@ const App = () => {
     () => !!localStorage.getItem("token")
   );
 
-  // Only restore session for presenters
   const restoredRoom = parsedRoom?.presenter ? parsedRoom : null;
   const [user, setUser]             = useState(restoredRoom || {});
   const [roomJoined, setRoomJoined] = useState(!!restoredRoom);
@@ -58,7 +57,7 @@ const App = () => {
   // ── Socket: emit user-joined ONLY for presenters ───────────────────────────
   useEffect(() => {
     if (!roomJoined) return;
-    if (!user?.presenter) return; // joiners handle their own emit in JoinCreateRoom
+    if (!user?.presenter) return;
 
     const token = localStorage.getItem("token");
     if (!token) {
@@ -67,12 +66,13 @@ const App = () => {
       return;
     }
     socket.emit("user-joined", { ...user, userName: user.name, token });
-  }, [roomJoined, user]); // ✅ depend on user too so it reads latest value 
+  }, [roomJoined, user]);
 
+  // ── Socket: message handling ───────────────────────────────────────────────
   useEffect(() => {
-  socket.on("message", (d) => toast.info(d.message));
-  return () => socket.off("message");
-}, []);
+    socket.on("message", (d) => toast.info(d.message));
+    return () => socket.off("message");
+  }, []);
 
   // ── Socket: error handling ─────────────────────────────────────────────────
   useEffect(() => {
@@ -87,6 +87,15 @@ const App = () => {
     });
     return () => socket.off("error");
   }, []);
+
+  // ── Leave room ─────────────────────────────────────────────────────────────
+  const handleLeave = () => {
+    sessionStorage.removeItem("roomUser");
+    setRoomJoined(false);
+    setUser({});
+    setUsers([]);
+    setUserNo(0);
+  };
 
   const handleSetRoomJoined = (val) => {
     if (!val) sessionStorage.removeItem("roomUser");
@@ -122,6 +131,7 @@ const App = () => {
               setUserNo={setUserNo}
               theme={theme}
               toggleTheme={toggleTheme}
+              onLeave={handleLeave}  // 👈 added
             />
           ) : (
             <ClientRoom
@@ -132,6 +142,7 @@ const App = () => {
               setUserNo={setUserNo}
               theme={theme}
               toggleTheme={toggleTheme}
+              onLeave={handleLeave}  // 👈 added
             />
           )}
         </>

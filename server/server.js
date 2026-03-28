@@ -134,6 +134,12 @@ if (!presenter && !activeRooms.has(roomId)) {
     if (!roomId) return;
     socket.broadcast.to(roomId).emit("cursor-leave", { socketId: socket.id });
   });
+  
+  socket.on("get-users", () => {
+  const roomId = socket.userRoom;
+  if (!roomId) return;
+  socket.emit("users", getUsers(roomId));
+});
 
   socket.on("disconnect", () => {
     const roomId   = socket.userRoom;
@@ -144,7 +150,7 @@ if (!presenter && !activeRooms.has(roomId)) {
         message: `${leftUser.username} left the room`,
       });
       io.to(leftUser.room).emit("users", getUsers(leftUser.room));
-    }
+    } 
 
     // If presenter leaves, close the room for everyone
     if (roomId && socket.presenter) {

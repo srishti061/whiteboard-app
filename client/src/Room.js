@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 import Canvas from "./Canvas";
 
-const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme }) => {
+const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme, onLeave }) => {
   const canvasRef = useRef(null);
   const ctx       = useRef(null);
 
@@ -11,19 +11,18 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
   const [history, setHistory]   = useState([]);
   const [tool, setTool]         = useState("pencil");
 
-// With this:
-useEffect(() => {
-  socket.on("error", (msg) => {
-    toast.error(msg);
-    socket.disconnect();
-  });
-  return () => socket.off("error");
-}, []);
+  useEffect(() => {
+    socket.on("error", (msg) => {
+      toast.error(msg);
+      socket.disconnect();
+    });
+    return () => socket.off("error");
+  }, []);
 
   useEffect(() => {
-  socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
-  return () => socket.off("users"); // 👈 add this
-}, []);
+    socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
+    return () => socket.off("users");
+  }, []);
 
   const clearCanvas = () => {
     setElements([]);
@@ -58,6 +57,9 @@ useEffect(() => {
   return (
     <div className="drawing-page">
       <div className="toolbar">
+
+        <button className="tb-btn" onClick={onLeave}>← Leave</button>  {/* 👈 added */}
+        <div className="tb-sep" />
 
         <div className="color-pill">
           <span>Color</span>
