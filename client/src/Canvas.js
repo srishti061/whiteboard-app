@@ -8,19 +8,19 @@ const CURSOR_COLORS = [
   "#60a5fa", "#f472b6", "#a3e635", "#fb923c",
 ];
 
-const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, user }) => {
+const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, user, setHistory, onClearRef }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [cursors, setCursors]     = useState({});
   const colorIndexRef             = useRef({});
   const nextColorRef              = useRef(0);
+  const isClearingRef             = useRef(false);
 
-  // ── Setup canvas to fill full screen ────────────────────────────────────────
+  // ── Setup canvas ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     const W = window.innerWidth;
     const H = window.innerHeight - TOOLBAR_H;
 
-    // Internal resolution 2x for sharp HiDPI
     canvas.width        = W * 2;
     canvas.height       = H * 2;
     canvas.style.width  = `${W}px`;
@@ -37,40 +37,50 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
     ctx.current = context;
   }, []);
 
-  // Update stroke color when picker changes
+  // Expose clear function to Room via ref
+  useEffect(() => {
+    if (onClearRef) {
+      onClearRef.current = () => {
+        if (!ctx.current) return;
+        isClearingRef.current = true;
+        const canvas = canvasRef.current;
+        ctx.current.fillStyle = "white";
+        ctx.current.fillRect(0, 0, canvas.width / 2, canvas.height / 2);
+      };
+    }
+  }, []);
+
+  // Update stroke color
   useEffect(() => {
     if (ctx.current) ctx.current.strokeStyle = color;
   }, [color]);
 
-  // ── Socket event listeners ───────────────────────────────────────────────────
+  // ── Socket listeners ──────────────────────────────────────────────────────────
   useEffect(() => {
-
-    // Viewer receives canvas image from presenter
     socket.on("canvasImage", (data) => {
-      const img   = new Image();
-      img.src     = data;
-      img.onload  = () => {
+      const img  = new Image();
+      img.src    = data;
+      img.onload = () => {
         if (!ctx.current) return;
         const canvas = canvasRef.current;
         const W = canvas.width  / 2;
         const H = canvas.height / 2;
-        // Clear first, then draw received image
         ctx.current.fillStyle = "white";
         ctx.current.fillRect(0, 0, W, H);
         ctx.current.drawImage(img, 0, 0, W, H);
       };
     });
 
-    // Someone cleared the canvas
+    // Handles clear from OTHER users (viewers / other presenters)
     socket.on("clear", () => {
-      if (!ctx.current) return;
-      const canvas = canvasRef.current;
-      ctx.current.fillStyle = "white";
-      ctx.current.fillRect(0, 0, canvas.width / 2, canvas.height / 2);
-      setElements([]);
-    });
+  if (!ctx.current) return;
+  const canvas = canvasRef.current;
+  ctx.current.fillStyle = "white";
+  ctx.current.fillRect(0, 0, canvas.width / 2, canvas.height / 2);
+  setElements([]);
+  setHistory([]);
+});
 
-    // Live cursors
     socket.on("cursor-move", ({ socketId, x, y, username }) => {
       if (!colorIndexRef.current[socketId]) {
         colorIndexRef.current[socketId] =
@@ -99,46 +109,47 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
     };
   }, []);
 
-  // ── Redraw canvas from elements state (presenter only) ───────────────────────
+  // ── Redraw from elements ──────────────────────────────────────────────────────
   useLayoutEffect(() => {
-    if (!ctx.current) return;
+  if (!ctx.current) return;
 
-    const canvas      = canvasRef.current;
-    const roughCanvas = rough.canvas(canvas);
-    const W = canvas.width  / 2;
-    const H = canvas.height / 2;
+  const canvas      = canvasRef.current;
+  const roughCanvas = rough.canvas(canvas);
+  const W = canvas.width  / 2;
+  const H = canvas.height / 2;
 
-    ctx.current.fillStyle = "white";
-    ctx.current.fillRect(0, 0, W, H);
+  ctx.current.fillStyle = "white";
+  ctx.current.fillRect(0, 0, W, H);
 
-    elements.forEach((ele) => {
-      if (ele.element === "rect") {
-        roughCanvas.draw(
-          generator.rectangle(ele.offsetX, ele.offsetY, ele.width, ele.height, {
-            stroke: ele.stroke, roughness: 0, strokeWidth: 5,
-          })
-        );
-      } else if (ele.element === "line") {
-        roughCanvas.draw(
-          generator.line(ele.offsetX, ele.offsetY, ele.width, ele.height, {
-            stroke: ele.stroke, roughness: 0, strokeWidth: 5,
-          })
-        );
-      } else if (ele.element === "pencil") {
-        roughCanvas.linearPath(ele.path, {
+  elements.forEach((ele) => {
+    if (ele.element === "rect") {
+      roughCanvas.draw(
+        generator.rectangle(ele.offsetX, ele.offsetY, ele.width, ele.height, {
           stroke: ele.stroke, roughness: 0, strokeWidth: 5,
-        });
-      }
-    });
+        })
+      );
+    } else if (ele.element === "line") {
+      roughCanvas.draw(
+        generator.line(ele.offsetX, ele.offsetY, ele.width, ele.height, {
+          stroke: ele.stroke, roughness: 0, strokeWidth: 5,
+        })
+      );
+    } else if (ele.element === "pencil") {
+      roughCanvas.linearPath(ele.path, {
+        stroke: ele.stroke, roughness: 0, strokeWidth: 5,
+      });
+    }
+  });
 
-    // Broadcast current canvas to all viewers on every stroke update
+  // Only broadcast when there's actually something to draw
+  if (elements.length > 0) {
     socket.emit("drawing", canvas.toDataURL());
-  }, [elements]);
+  }
+}, [elements]);
 
   // ── Mouse handlers ────────────────────────────────────────────────────────────
   const handleMouseDown = (e) => {
     const { offsetX, offsetY } = e.nativeEvent;
-
     if (tool === "pencil") {
       setElements((prev) => [
         ...prev,
@@ -155,8 +166,6 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
 
   const handleMouseMove = (e) => {
     const { offsetX, offsetY } = e.nativeEvent;
-
-    // Always broadcast cursor position (even when not drawing)
     socket.emit("cursor-move", {
       x: offsetX,
       y: offsetY,
@@ -192,7 +201,6 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
     }
   };
 
-  // On mouseUp: save snapshot to DB (only once per stroke, not every move)
   const handleMouseUp = () => {
     setIsDrawing(false);
     socket.emit("save-snapshot", canvasRef.current.toDataURL());
@@ -219,7 +227,6 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
     >
       <canvas ref={canvasRef} style={{ display: "block" }} />
 
-      {/* Remote cursor overlays */}
       {Object.entries(cursors).map(([id, { x, y, username, color: c }]) => (
         <div
           key={id}

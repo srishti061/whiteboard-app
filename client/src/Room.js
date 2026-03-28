@@ -3,8 +3,10 @@ import { toast } from "react-toastify";
 import Canvas from "./Canvas";
 
 const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme }) => {
-  const canvasRef = useRef(null);
-  const ctx       = useRef(null);
+  const canvasRef  = useRef(null);
+  const ctx        = useRef(null);
+  const clearFnRef = useRef(null);
+
   const [color, setColor]       = useState("#000000");
   const [elements, setElements] = useState([]);
   const [history, setHistory]   = useState([]);
@@ -18,30 +20,11 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
     socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
   }, []);
 
-  useEffect(() => {
-  socket.on("clear", () => {
-    const canvas  = canvasRef.current;
-    const context = canvas.getContext("2d");
-    context.fillStyle = "white";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    setElements([]);
-    setHistory([]);
-  });
-  return () => socket.off("clear");
-}, []);
-
   const clearCanvas = () => {
-  // Clear locally immediately (instant)
-  const canvas  = canvasRef.current;
-  const context = canvas.getContext("2d");
-  context.fillStyle = "white";
-  context.fillRect(0, 0, canvas.width, canvas.height);
   setElements([]);
   setHistory([]);
-  // Then tell others
   socket.emit("clear");
 };
-
   const undo = () => {
     setHistory((p) => [...p, elements[elements.length - 1]]);
     setElements((p) => p.filter((_, i) => i !== elements.length - 1));
@@ -59,32 +42,32 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
   ];
 
   const downloadCanvas = () => {
-  const canvas = canvasRef.current;
-  const link   = document.createElement("a");
-  link.download = `whiteboard-${Date.now()}.png`;
-  link.href     = canvas.toDataURL("image/png");
-  link.click();
-};
+    const canvas = canvasRef.current;
+    const link   = document.createElement("a");
+    link.download = `whiteboard-${Date.now()}.png`;
+    link.href     = canvas.toDataURL("image/png");
+    link.click();
+  };
 
   return (
     <div className="drawing-page">
       <div className="toolbar">
 
         <div className="color-pill">
-  <span>Color</span>
-  <div
-    className="color-swatch"
-    style={{ background: color, cursor: "pointer" }}
-    onClick={() => document.getElementById("colorPicker").click()}
-  />
-  <input
-    type="color"
-    id="colorPicker"
-    value={color}
-    onChange={(e) => setColor(e.target.value)}
-    style={{ display: "none" }}
-  />
-</div>
+          <span>Color</span>
+          <div
+            className="color-swatch"
+            style={{ background: color, cursor: "pointer" }}
+            onClick={() => document.getElementById("colorPicker").click()}
+          />
+          <input
+            type="color"
+            id="colorPicker"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            style={{ display: "none" }}
+          />
+        </div>
 
         <div className="tb-sep" />
 
@@ -110,14 +93,10 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
         <div className="tb-sep" />
 
         <button className="tb-btn kill" onClick={clearCanvas}>✕ Clear</button>
-
-<button className="tb-btn" onClick={downloadCanvas}>
-  ↓ Download
-</button>
+        <button className="tb-btn" onClick={downloadCanvas}>↓ Download</button>
 
         <div className="tb-sep" />
 
-        {/* Theme toggle */}
         <button className="tb-theme-toggle" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
@@ -138,6 +117,8 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
           tool={tool}
           socket={socket}
           user={user}
+          setHistory={setHistory}
+          onClearRef={clearFnRef}
         />
       </div>
     </div>
