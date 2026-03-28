@@ -94,7 +94,7 @@ io.on("connection", (socket) => {
     if (!roomId) return;
     roomCanvases[roomId] = "";
     await Board.findOneAndUpdate({ roomId }, { imageUrl: "" });
-    io.to(roomId).emit("clear");
+    socket.broadcast.to(roomId).emit("clear");
   });
 
   socket.on("cursor-move", (data) => {

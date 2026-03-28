@@ -7,7 +7,6 @@ import Room from "./Room";
 import Sidebar from "./Sidebar";
 import Login from "./Login";
 import "./style.css";
-import SERVER from "./config";
 
 const server = "https://whiteboard-app-ic5d.onrender.com";
 const connectionOptions = {
@@ -20,20 +19,24 @@ const connectionOptions = {
 const socket = io(server, connectionOptions);
 
 const App = () => {
-  const [userNo, setUserNo]         = useState(0);
-  const [roomJoined, setRoomJoined] = useState(false);
-  const [user, setUser]             = useState({});
-  const [users, setUsers]           = useState([]);
+  const [userNo, setUserNo] = useState(0);
+  const [users, setUsers]   = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(
     () => !!localStorage.getItem("token")
   );
 
-  // ── Theme: read from localStorage, default dark ──────────────────────────
+  // ── Restore room session on refresh ──────────────────────────────────────
+  const savedRoom  = sessionStorage.getItem("roomUser");
+  const parsedRoom = savedRoom ? JSON.parse(savedRoom) : null;
+
+  const [user, setUser]             = useState(parsedRoom || {});
+  const [roomJoined, setRoomJoined] = useState(!!parsedRoom);
+
+  // ── Theme ─────────────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(
     () => localStorage.getItem("theme") || "dark"
   );
 
-  // Apply theme to <html> element whenever it changes
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
@@ -70,9 +73,15 @@ const App = () => {
         setIsLoggedIn(false);
       }
       setRoomJoined(false);
+      sessionStorage.removeItem("roomUser");
     });
     return () => socket.off("error");
   }, []);
+
+  const handleSetRoomJoined = (val) => {
+    if (!val) sessionStorage.removeItem("roomUser");
+    setRoomJoined(val);
+  };
 
   return (
     <div className="home">
@@ -84,7 +93,7 @@ const App = () => {
       ) : !roomJoined ? (
         <JoinCreateRoom
           uuid={uuid}
-          setRoomJoined={setRoomJoined}
+          setRoomJoined={handleSetRoomJoined}
           setUser={setUser}
           theme={theme}
           toggleTheme={toggleTheme}

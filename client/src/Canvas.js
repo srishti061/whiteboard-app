@@ -8,14 +8,13 @@ const CURSOR_COLORS = [
   "#60a5fa", "#f472b6", "#a3e635", "#fb923c",
 ];
 
-const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, user, setHistory, onClearRef }) => {
+const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, user, setHistory }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [cursors, setCursors]     = useState({});
   const colorIndexRef             = useRef({});
   const nextColorRef              = useRef(0);
-  const isClearingRef             = useRef(false);
+  const isDrawingRef              = useRef(false);
 
-  // ── Setup canvas ─────────────────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     const W = window.innerWidth;
@@ -37,25 +36,10 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
     ctx.current = context;
   }, []);
 
-  // Expose clear function to Room via ref
-  useEffect(() => {
-    if (onClearRef) {
-      onClearRef.current = () => {
-        if (!ctx.current) return;
-        isClearingRef.current = true;
-        const canvas = canvasRef.current;
-        ctx.current.fillStyle = "white";
-        ctx.current.fillRect(0, 0, canvas.width / 2, canvas.height / 2);
-      };
-    }
-  }, []);
-
-  // Update stroke color
   useEffect(() => {
     if (ctx.current) ctx.current.strokeStyle = color;
   }, [color]);
 
-  // ── Socket listeners ──────────────────────────────────────────────────────────
   useEffect(() => {
     socket.on("canvasImage", (data) => {
       const img  = new Image();
@@ -71,15 +55,12 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
       };
     });
 
-    // Handles clear from OTHER users (viewers / other presenters)
     socket.on("clear", () => {
-  if (!ctx.current) return;
-  const canvas = canvasRef.current;
-  ctx.current.fillStyle = "white";
-  ctx.current.fillRect(0, 0, canvas.width / 2, canvas.height / 2);
-  setElements([]);
-  setHistory([]);
-});
+      if (!ctx.current) return;
+      const canvas = canvasRef.current;
+      ctx.current.fillStyle = "white";
+      ctx.current.fillRect(0, 0, canvas.width / 2, canvas.height / 2);
+    });
 
     socket.on("cursor-move", ({ socketId, x, y, username }) => {
       if (!colorIndexRef.current[socketId]) {
@@ -109,47 +90,47 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
     };
   }, []);
 
-  // ── Redraw from elements ──────────────────────────────────────────────────────
+  // ── Local redraw only — NO socket emit here ───────────────────────────────
   useLayoutEffect(() => {
-  if (!ctx.current) return;
+    if (!ctx.current) return;
 
-  const canvas      = canvasRef.current;
-  const roughCanvas = rough.canvas(canvas);
-  const W = canvas.width  / 2;
-  const H = canvas.height / 2;
+    const canvas      = canvasRef.current;
+    const roughCanvas = rough.canvas(canvas);
+    const W = canvas.width  / 2;
+    const H = canvas.height / 2;
 
-  ctx.current.fillStyle = "white";
-  ctx.current.fillRect(0, 0, W, H);
+    ctx.current.fillStyle = "white";
+    ctx.current.fillRect(0, 0, W, H);
 
-  elements.forEach((ele) => {
-    if (ele.element === "rect") {
-      roughCanvas.draw(
-        generator.rectangle(ele.offsetX, ele.offsetY, ele.width, ele.height, {
+    elements.forEach((ele) => {
+      if (ele.element === "rect") {
+        roughCanvas.draw(
+          generator.rectangle(ele.offsetX, ele.offsetY, ele.width, ele.height, {
+            stroke: ele.stroke, roughness: 0, strokeWidth: 5,
+          })
+        );
+      } else if (ele.element === "line") {
+        roughCanvas.draw(
+          generator.line(ele.offsetX, ele.offsetY, ele.width, ele.height, {
+            stroke: ele.stroke, roughness: 0, strokeWidth: 5,
+          })
+        );
+      } else if (ele.element === "pencil") {
+        roughCanvas.linearPath(ele.path, {
           stroke: ele.stroke, roughness: 0, strokeWidth: 5,
-        })
-      );
-    } else if (ele.element === "line") {
-      roughCanvas.draw(
-        generator.line(ele.offsetX, ele.offsetY, ele.width, ele.height, {
-          stroke: ele.stroke, roughness: 0, strokeWidth: 5,
-        })
-      );
-    } else if (ele.element === "pencil") {
-      roughCanvas.linearPath(ele.path, {
-        stroke: ele.stroke, roughness: 0, strokeWidth: 5,
-      });
+        });
+      }
+    });
+
+    // Only broadcast while actively drawing
+    if (isDrawingRef.current && elements.length > 0) {
+      socket.emit("drawing", canvas.toDataURL());
     }
-  });
+  }, [elements]);
 
-  // Only broadcast when there's actually something to draw
-  if (elements.length > 0) {
-    socket.emit("drawing", canvas.toDataURL());
-  }
-}, [elements]);
-
-  // ── Mouse handlers ────────────────────────────────────────────────────────────
   const handleMouseDown = (e) => {
     const { offsetX, offsetY } = e.nativeEvent;
+    isDrawingRef.current = true;
     if (tool === "pencil") {
       setElements((prev) => [
         ...prev,
@@ -202,8 +183,12 @@ const Canvas = ({ canvasRef, ctx, color, setElements, elements, tool, socket, us
   };
 
   const handleMouseUp = () => {
+    isDrawingRef.current = false;
     setIsDrawing(false);
-    socket.emit("save-snapshot", canvasRef.current.toDataURL());
+    if (elements.length > 0) {
+      socket.emit("drawing", canvasRef.current.toDataURL());
+      socket.emit("save-snapshot", canvasRef.current.toDataURL());
+    }
   };
 
   const handleMouseLeave = () => {

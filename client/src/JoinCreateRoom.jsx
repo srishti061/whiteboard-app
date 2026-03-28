@@ -14,14 +14,18 @@ const JoinCreateRoom = ({
 
   const handleCreate = () => {
     if (!name.trim()) return alert("Please enter your name");
-    setUser({ name, roomId, presenter: true });
+    const user = { name, roomId, presenter: true };
+    sessionStorage.setItem("roomUser", JSON.stringify(user));
+    setUser(user);
     setRoomJoined(true);
   };
 
   const handleJoin = () => {
     if (!joinName.trim()) return alert("Please enter your name");
     if (!joinRoomId.trim()) return alert("Please enter a Room ID");
-    setUser({ name: joinName, roomId: joinRoomId, presenter: false });
+    const user = { name: joinName, roomId: joinRoomId, presenter: false };
+    sessionStorage.setItem("roomUser", JSON.stringify(user));
+    setUser(user);
     setRoomJoined(true);
   };
 
@@ -32,7 +36,6 @@ const JoinCreateRoom = ({
 
   return (
     <div className="rooms-page">
-      {/* Theme toggle — top right */}
       <button
         className="theme-toggle"
         onClick={toggleTheme}
@@ -47,13 +50,11 @@ const JoinCreateRoom = ({
       </div>
 
       <div className="rooms-grid">
-        {/* Create Room */}
         <div className="room-card">
           <div className="room-card-head">
             <div className="room-card-icon">✏️</div>
             <span className="room-card-title">Create Room</span>
           </div>
-
           <div className="room-field">
             <label>Your Name</label>
             <input
@@ -63,7 +64,6 @@ const JoinCreateRoom = ({
               onChange={(e) => setName(e.target.value)}
             />
           </div>
-
           <div className="room-field">
             <label>Room ID</label>
             <div className="room-id-row">
@@ -72,19 +72,16 @@ const JoinCreateRoom = ({
               <button onClick={handleCopy}>Copy</button>
             </div>
           </div>
-
           <button className="room-submit" onClick={handleCreate}>
             Create Room
           </button>
         </div>
 
-        {/* Join Room */}
         <div className="room-card">
           <div className="room-card-head">
             <div className="room-card-icon">🔗</div>
             <span className="room-card-title">Join Room</span>
           </div>
-
           <div className="room-field">
             <label>Your Name</label>
             <input
@@ -94,7 +91,6 @@ const JoinCreateRoom = ({
               onChange={(e) => setJoinName(e.target.value)}
             />
           </div>
-
           <div className="room-field">
             <label>Room ID</label>
             <input
@@ -104,7 +100,6 @@ const JoinCreateRoom = ({
               onChange={(e) => setJoinRoomId(e.target.value)}
             />
           </div>
-
           <button className="room-submit" onClick={handleJoin}>
             Join Room
           </button>

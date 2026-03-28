@@ -3,9 +3,8 @@ import { toast } from "react-toastify";
 import Canvas from "./Canvas";
 
 const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme }) => {
-  const canvasRef  = useRef(null);
-  const ctx        = useRef(null);
-  const clearFnRef = useRef(null);
+  const canvasRef = useRef(null);
+  const ctx       = useRef(null);
 
   const [color, setColor]       = useState("#000000");
   const [elements, setElements] = useState([]);
@@ -21,10 +20,11 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
   }, []);
 
   const clearCanvas = () => {
-  setElements([]);
-  setHistory([]);
-  socket.emit("clear");
-};
+    setElements([]);
+    setHistory([]);
+    socket.emit("clear");
+  };
+
   const undo = () => {
     setHistory((p) => [...p, elements[elements.length - 1]]);
     setElements((p) => p.filter((_, i) => i !== elements.length - 1));
@@ -118,7 +118,6 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
           socket={socket}
           user={user}
           setHistory={setHistory}
-          onClearRef={clearFnRef}
         />
       </div>
     </div>
