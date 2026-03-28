@@ -28,28 +28,10 @@ const JoinCreateRoom = ({
     const token = localStorage.getItem("token");
     const user = { name: joinName, roomId: joinRoomId, presenter: false };
 
-    const onMessage = (d) => {
-      if (d.message === "Welcome to the room!") {
-        socket.off("error", onError); // ✅ clean up error listener
-        sessionStorage.setItem("roomUser", JSON.stringify(user));
-        setUser(user);
-        setRoomJoined(true);
-      }
-    };
-
-    const onError = () => {
-      socket.off("message", onMessage); // ✅ clean up message listener
-    };
-
-    socket.once("message", onMessage);
-    socket.once("error", onError); // ✅ remove message listener if error fires
-
-    socket.emit("user-joined", {
-      ...user,
-      userName: user.name,
-      host: false,
-      token,
-    });
+    // Save to session and let App.js error handler revert if server rejects
+    sessionStorage.setItem("roomUser", JSON.stringify(user));
+    setUser(user);
+    setRoomJoined(true);
   };
 
   const handleCopy = () => {

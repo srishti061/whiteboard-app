@@ -18,12 +18,9 @@ const connectionOptions = {
 
 const socket = io(server, connectionOptions);
 
-// ── Clear stale joiner session BEFORE component (sync, outside render) ──────
+// Restore session for BOTH presenter and joiner
 const savedRoom  = sessionStorage.getItem("roomUser");
 const parsedRoom = savedRoom ? JSON.parse(savedRoom) : null;
-if (parsedRoom && !parsedRoom.presenter) {
-  sessionStorage.removeItem("roomUser");
-}
 
 const App = () => {
   const [userNo, setUserNo] = useState(0);
@@ -32,9 +29,8 @@ const App = () => {
     () => !!localStorage.getItem("token")
   );
 
-  const restoredRoom = parsedRoom?.presenter ? parsedRoom : null;
-  const [user, setUser]             = useState(restoredRoom || {});
-  const [roomJoined, setRoomJoined] = useState(!!restoredRoom);
+  const [user, setUser]             = useState(parsedRoom || {});
+  const [roomJoined, setRoomJoined] = useState(!!parsedRoom);
 
   // ── Theme ──────────────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(
@@ -54,10 +50,9 @@ const App = () => {
     return `${S4()}${S4()}-${S4()}-${S4()}-${S4()}-${S4()}${S4()}${S4()}`;
   };
 
-  // ── Socket: emit user-joined ONLY for presenters ───────────────────────────
+  // ── Socket: emit user-joined for BOTH presenter and joiner on mount/refresh
   useEffect(() => {
     if (!roomJoined) return;
-    if (!user?.presenter) return;
 
     const token = localStorage.getItem("token");
     if (!token) {
@@ -77,7 +72,7 @@ const App = () => {
   // ── Socket: error handling ─────────────────────────────────────────────────
   useEffect(() => {
     socket.on("error", (msg) => {
-      toast.error(msg);
+      toast.error(msg); // ✅ always show error toast
       if (msg === "Unauthorized") {
         localStorage.removeItem("token");
         setIsLoggedIn(false);
@@ -105,10 +100,8 @@ const App = () => {
   return (
     <div className="home">
       <ToastContainer />
-
       {!isLoggedIn ? (
         <Login setUser={setIsLoggedIn} theme={theme} toggleTheme={toggleTheme} />
-
       ) : !roomJoined ? (
         <JoinCreateRoom
           uuid={uuid}
@@ -118,7 +111,6 @@ const App = () => {
           toggleTheme={toggleTheme}
           socket={socket}
         />
-
       ) : (
         <>
           <Sidebar users={users} user={user} socket={socket} />
@@ -131,7 +123,7 @@ const App = () => {
               setUserNo={setUserNo}
               theme={theme}
               toggleTheme={toggleTheme}
-              onLeave={handleLeave}  // 👈 added
+              onLeave={handleLeave}
             />
           ) : (
             <ClientRoom
@@ -142,7 +134,7 @@ const App = () => {
               setUserNo={setUserNo}
               theme={theme}
               toggleTheme={toggleTheme}
-              onLeave={handleLeave}  // 👈 added
+              onLeave={handleLeave}
             />
           )}
         </>
