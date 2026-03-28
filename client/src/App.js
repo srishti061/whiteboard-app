@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast, ToastContainer } from "react-toastify";
 import io from "socket.io-client";
 import ClientRoom from "./ClientRoom";
@@ -27,7 +27,10 @@ const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("token"));
 
   const [user, setUser]             = useState(parsedRoom || {});
-  const [roomJoined, setRoomJoined] = useState(!!parsedRoom);
+  const [roomJoined, setRoomJoined] = useState(false); // ✅ always start false
+
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   useEffect(() => {
@@ -41,17 +44,25 @@ const App = () => {
     return `${S4()}${S4()}-${S4()}-${S4()}-${S4()}-${S4()}${S4()}${S4()}`;
   };
 
-  // ── Emit user-joined whenever roomJoined becomes true ─────────────────────
+  // ✅ On mount: restore session if exists (causes roomJoined false→true, triggering emit)
   useEffect(() => {
-    if (!roomJoined || !user?.name) return;
+    if (parsedRoom && isLoggedIn) {
+      setUser(parsedRoom);
+      setRoomJoined(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ✅ Emit user-joined whenever roomJoined becomes true
+  useEffect(() => {
+    if (!roomJoined || !userRef.current?.name) return;
     const token = localStorage.getItem("token");
     if (!token) {
       toast.error("Please login first");
       setRoomJoined(false);
       return;
     }
-    socket.emit("user-joined", { ...user, userName: user.name, token });
-  }, [roomJoined]); // ✅ only depend on roomJoined, not user (avoids double emit)
+    socket.emit("user-joined", { ...userRef.current, userName: userRef.current.name, token });
+  }, [roomJoined]);
 
   // ── Users update ───────────────────────────────────────────────────────────
   useEffect(() => {
