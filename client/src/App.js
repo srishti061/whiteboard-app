@@ -27,10 +27,15 @@ const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("token"));
 
   const [user, setUser]             = useState(parsedRoom || {});
-  const [roomJoined, setRoomJoined] = useState(false); // ✅ always start false
+  const [roomJoined, setRoomJoined] = useState(false);
 
-  const userRef = useRef(user);
-  useEffect(() => { userRef.current = user; }, [user]);
+  const userRef      = useRef(user);
+  const mountedRef   = useRef(false);
+  const loggedInRef  = useRef(isLoggedIn);
+
+  // Keep refs in sync
+  useEffect(() => { userRef.current     = user;        }, [user]);
+  useEffect(() => { loggedInRef.current = isLoggedIn;  }, [isLoggedIn]);
 
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   useEffect(() => {
@@ -44,15 +49,17 @@ const App = () => {
     return `${S4()}${S4()}-${S4()}-${S4()}-${S4()}-${S4()}${S4()}${S4()}`;
   };
 
-  // ✅ On mount: restore session if exists (causes roomJoined false→true, triggering emit)
+  // Restore session on mount — uses refs to avoid exhaustive-deps warning
   useEffect(() => {
-    if (parsedRoom && isLoggedIn) {
+    if (mountedRef.current) return;
+    mountedRef.current = true;
+    if (parsedRoom && loggedInRef.current) {
       setUser(parsedRoom);
       setRoomJoined(true);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
-  // ✅ Emit user-joined whenever roomJoined becomes true
+  // Emit user-joined whenever roomJoined flips to true
   useEffect(() => {
     if (!roomJoined || !userRef.current?.name) return;
     const token = localStorage.getItem("token");
@@ -61,22 +68,26 @@ const App = () => {
       setRoomJoined(false);
       return;
     }
-    socket.emit("user-joined", { ...userRef.current, userName: userRef.current.name, token });
+    socket.emit("user-joined", {
+      ...userRef.current,
+      userName: userRef.current.name,
+      token,
+    });
   }, [roomJoined]);
 
-  // ── Users update ───────────────────────────────────────────────────────────
+  // Users update
   useEffect(() => {
     socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
     return () => socket.off("users");
   }, []);
 
-  // ── Messages ───────────────────────────────────────────────────────────────
+  // Messages
   useEffect(() => {
     socket.on("message", (d) => toast.info(d.message));
     return () => socket.off("message");
   }, []);
 
-  // ── Errors ────────────────────────────────────────────────────────────────
+  // Errors
   useEffect(() => {
     socket.on("error", (msg) => {
       toast.error(msg);
