@@ -23,10 +23,18 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTh
   };
 
   useEffect(() => {
-    socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
+  socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
+  
+  // Small delay to ensure server has processed user-joined first
+  const timer = setTimeout(() => {
     socket.emit("get-users");
-    return () => socket.off("users");
-  }, []);
+  }, 500); // 👈 wait 500ms
+
+  return () => {
+    socket.off("users");
+    clearTimeout(timer);
+  };
+}, []);
 
   useEffect(() => {
     socket.on("canvasImage", (data) => {
