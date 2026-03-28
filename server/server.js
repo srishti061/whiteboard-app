@@ -36,6 +36,7 @@ io.on("connection", (socket) => {
     const { roomId, userName, name, host, presenter, token } = data;
     const resolvedName = userName || name || "Guest";
 
+    // ── Auth check ─────────────────────────────────────────────────────────
     try {
       jwt.verify(token, process.env.JWT_SECRET);
     } catch {
@@ -44,19 +45,34 @@ io.on("connection", (socket) => {
     }
 
     if (presenter) {
+      // ── Presenter joining / refreshing ──────────────────────────────────
+      // Always upsert the board so the room is valid
       await Board.findOneAndUpdate(
         { roomId },
         { $setOnInsert: { roomId, imageUrl: "" } },
         { upsert: true, new: true }
       );
-      activeRooms.add(roomId);
-      const board = await Board.findOne({ roomId });
-      if (board?.imageUrl) roomCanvases[roomId] = board.imageUrl;
-    }
+      activeRooms.add(roomId); // ✅ re-add on refresh
 
-    if (!presenter && !activeRooms.has(roomId)) {
-      socket.emit("error", "Room does not exist or has ended");
-      return;
+      // Restore canvas from DB if not in memory
+      if (!roomCanvases[roomId]) {
+        const board = await Board.findOne({ roomId });
+        if (board?.imageUrl) roomCanvases[roomId] = board.imageUrl;
+      }
+    } else {
+      // ── Client joining ──────────────────────────────────────────────────
+      // Check memory first, then fall back to DB (handles presenter refresh race)
+      if (!activeRooms.has(roomId)) {
+        const board = await Board.findOne({ roomId });
+        if (board) {
+          // Room exists in DB — allow client in and restore it
+          activeRooms.add(roomId);
+          if (board.imageUrl) roomCanvases[roomId] = board.imageUrl;
+        } else {
+          socket.emit("error", "Room does not exist or has ended");
+          return;
+        }
+      }
     }
 
     socket.userRoom  = roomId;
@@ -66,19 +82,14 @@ io.on("connection", (socket) => {
     const roomUsers = getUsers(roomId);
     socket.join(roomId);
 
+    // Send current canvas state to the joining socket
     if (roomCanvases[roomId]) {
       socket.emit("canvasImage", roomCanvases[roomId]);
-    } else {
-      const board = await Board.findOne({ roomId });
-      if (board?.imageUrl) {
-        roomCanvases[roomId] = board.imageUrl;
-        socket.emit("canvasImage", board.imageUrl);
-      }
     }
 
     socket.emit("message", { message: "Welcome to the room!" });
     socket.broadcast.to(roomId).emit("message", { message: `${resolvedName} has joined` });
-    io.to(roomId).emit("users", roomUsers); // ✅ broadcast to ALL in room including sender
+    io.to(roomId).emit("users", roomUsers);
   });
 
   socket.on("drawing", (data) => {
@@ -132,10 +143,17 @@ io.on("connection", (socket) => {
       io.to(leftUser.room).emit("users", getUsers(leftUser.room));
     }
 
+    // ✅ Only kill the room if no users remain AND it was the presenter
+    // Don't delete roomCanvases so canvas survives a presenter refresh
     if (roomId && socket.presenter) {
-      activeRooms.delete(roomId);
-      delete roomCanvases[roomId];
-      io.to(roomId).emit("error", "Host has left the room");
+      const remaining = getUsers(roomId);
+      if (remaining.length === 0) {
+        activeRooms.delete(roomId);
+        // ✅ Do NOT delete roomCanvases[roomId] here — let DB be source of truth
+      } else {
+        // Other users still in room — notify them presenter left but keep room alive
+        io.to(roomId).emit("message", { message: "Host refreshed, reconnecting..." });
+      }
     }
 
     if (roomId) {
