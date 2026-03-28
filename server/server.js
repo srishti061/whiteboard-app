@@ -46,15 +46,17 @@ io.on("connection", (socket) => {
 
     // Presenter must activate a room that exists in the DB
 // Presenter must activate a room that exists in the DB
+// Presenter must activate a room that exists in the DB
 if (presenter) {
-  const board = await Board.findOne({ roomId });
-  if (!board) {
-    socket.emit("error", "Room does not exist");
-    return;
-  }
+  // Create the board if it doesn't exist yet (presenter is creating the room)
+  await Board.findOneAndUpdate(
+    { roomId },
+    { $setOnInsert: { roomId, imageUrl: "" } },
+    { upsert: true, new: true }
+  );
   activeRooms.add(roomId);
-  // Cache canvas immediately so the second DB call is skipped below
-  if (board.imageUrl) {
+  const board = await Board.findOne({ roomId });
+  if (board?.imageUrl) {
     roomCanvases[roomId] = board.imageUrl;
   }
 }
