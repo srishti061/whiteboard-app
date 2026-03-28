@@ -19,18 +19,28 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
   }, []);
 
   useEffect(() => {
-    socket.on("clear", () => {
-      const canvas  = canvasRef.current;
-      const context = canvas.getContext("2d");
-      context.fillStyle = "white";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      setElements([]);
-      setHistory([]);
-    });
-    return () => socket.off("clear");
-  }, []);
+  socket.on("clear", () => {
+    const canvas  = canvasRef.current;
+    const context = canvas.getContext("2d");
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    setElements([]);
+    setHistory([]);
+  });
+  return () => socket.off("clear");
+}, []);
 
-  const clearCanvas = () => socket.emit("clear");
+  const clearCanvas = () => {
+  // Clear locally immediately (instant)
+  const canvas  = canvasRef.current;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "white";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  setElements([]);
+  setHistory([]);
+  // Then tell others
+  socket.emit("clear");
+};
 
   const undo = () => {
     setHistory((p) => [...p, elements[elements.length - 1]]);
@@ -61,10 +71,20 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
       <div className="toolbar">
 
         <div className="color-pill">
-          <span>Color</span>
-          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
-          <div className="color-swatch" style={{ background: color }} />
-        </div>
+  <span>Color</span>
+  <div
+    className="color-swatch"
+    style={{ background: color, cursor: "pointer" }}
+    onClick={() => document.getElementById("colorPicker").click()}
+  />
+  <input
+    type="color"
+    id="colorPicker"
+    value={color}
+    onChange={(e) => setColor(e.target.value)}
+    style={{ display: "none" }}
+  />
+</div>
 
         <div className="tb-sep" />
 
