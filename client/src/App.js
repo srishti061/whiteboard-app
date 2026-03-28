@@ -18,42 +18,32 @@ const connectionOptions = {
 
 const socket = io(server, connectionOptions);
 
-// Restore session for BOTH presenter and joiner
 const savedRoom  = sessionStorage.getItem("roomUser");
 const parsedRoom = savedRoom ? JSON.parse(savedRoom) : null;
 
 const App = () => {
   const [userNo, setUserNo] = useState(0);
   const [users, setUsers]   = useState([]);
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    () => !!localStorage.getItem("token")
-  );
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("token"));
 
   const [user, setUser]             = useState(parsedRoom || {});
   const [roomJoined, setRoomJoined] = useState(!!parsedRoom);
 
-  // ── Theme ──────────────────────────────────────────────────────────────────
-  const [theme, setTheme] = useState(
-    () => localStorage.getItem("theme") || "dark"
-  );
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
-  const toggleTheme = () =>
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  const toggleTheme = () => setTheme((prev) => (prev === "dark" ? "light" : "dark"));
 
-  // ── UUID generator ─────────────────────────────────────────────────────────
   const uuid = () => {
-    const S4 = () =>
-      (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
+    const S4 = () => (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
     return `${S4()}${S4()}-${S4()}-${S4()}-${S4()}-${S4()}${S4()}${S4()}`;
   };
 
-  // ── Socket: emit user-joined for BOTH presenter and joiner on mount/refresh
+  // ── Emit user-joined whenever roomJoined becomes true ─────────────────────
   useEffect(() => {
-    if (!roomJoined) return;
-
+    if (!roomJoined || !user?.name) return;
     const token = localStorage.getItem("token");
     if (!token) {
       toast.error("Please login first");
@@ -61,18 +51,24 @@ const App = () => {
       return;
     }
     socket.emit("user-joined", { ...user, userName: user.name, token });
-  }, [roomJoined, user]);
+  }, [roomJoined]); // ✅ only depend on roomJoined, not user (avoids double emit)
 
-  // ── Socket: message handling ───────────────────────────────────────────────
+  // ── Users update ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
+    return () => socket.off("users");
+  }, []);
+
+  // ── Messages ───────────────────────────────────────────────────────────────
   useEffect(() => {
     socket.on("message", (d) => toast.info(d.message));
     return () => socket.off("message");
   }, []);
 
-  // ── Socket: error handling ─────────────────────────────────────────────────
+  // ── Errors ────────────────────────────────────────────────────────────────
   useEffect(() => {
     socket.on("error", (msg) => {
-      toast.error(msg); // ✅ always show error toast
+      toast.error(msg);
       if (msg === "Unauthorized") {
         localStorage.removeItem("token");
         setIsLoggedIn(false);
@@ -83,7 +79,6 @@ const App = () => {
     return () => socket.off("error");
   }, []);
 
-  // ── Leave room ─────────────────────────────────────────────────────────────
   const handleLeave = () => {
     sessionStorage.removeItem("roomUser");
     setRoomJoined(false);

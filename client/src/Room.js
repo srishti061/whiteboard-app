@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { toast } from "react-toastify";
 import Canvas from "./Canvas";
 
 const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme, onLeave }) => {
@@ -11,18 +10,7 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme, o
   const [history, setHistory]   = useState([]);
   const [tool, setTool]         = useState("pencil");
 
-  useEffect(() => {
-    socket.on("error", (msg) => {
-      toast.error(msg);
-      socket.disconnect();
-    });
-    return () => socket.off("error");
-  }, []);
-
-  useEffect(() => {
-    socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
-    return () => socket.off("users");
-  }, []);
+  // ✅ No error listener here — App.js handles all errors centrally
 
   const clearCanvas = () => {
     setElements([]);
@@ -57,10 +45,8 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme, o
   return (
     <div className="drawing-page">
       <div className="toolbar">
-
-        <button className="tb-btn" onClick={onLeave}>← Leave</button>  {/* 👈 added */}
+        <button className="tb-btn" onClick={onLeave}>← Leave</button>
         <div className="tb-sep" />
-
         <div className="color-pill">
           <span>Color</span>
           <div
@@ -76,45 +62,27 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme, o
             style={{ display: "none" }}
           />
         </div>
-
         <div className="tb-sep" />
-
         {tools.map((t) => (
-          <button
-            key={t.id}
-            className={`tb-btn ${tool === t.id ? "on" : ""}`}
-            onClick={() => setTool(t.id)}
-          >
+          <button key={t.id} className={`tb-btn ${tool === t.id ? "on" : ""}`} onClick={() => setTool(t.id)}>
             {t.icon} {t.label}
           </button>
         ))}
-
         <div className="tb-sep" />
-
-        <button className="tb-btn" disabled={elements.length === 0} onClick={undo}>
-          ↩ Undo
-        </button>
-        <button className="tb-btn" disabled={history.length < 1} onClick={redo}>
-          ↪ Redo
-        </button>
-
+        <button className="tb-btn" disabled={elements.length === 0} onClick={undo}>↩ Undo</button>
+        <button className="tb-btn" disabled={history.length < 1} onClick={redo}>↪ Redo</button>
         <div className="tb-sep" />
-
         <button className="tb-btn kill" onClick={clearCanvas}>✕ Clear</button>
         <button className="tb-btn" onClick={downloadCanvas}>↓ Download</button>
-
         <div className="tb-sep" />
-
         <button className="tb-theme-toggle" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
-
         <div className="online-pill">
           <div className="online-dot" />
           {userNo} online
         </div>
       </div>
-
       <div className="canvas-wrapper">
         <Canvas
           canvasRef={canvasRef}

@@ -12,7 +12,6 @@ const Board      = require("./models/Board");
 const app    = express();
 const server = http.createServer(app);
 const FRONTEND_URL = "https://whiteboard-app-snowy.vercel.app";
-
 const PORT = process.env.PORT || 5000;
 
 const io = require("socket.io")(server, {
@@ -44,28 +43,21 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Presenter must activate a room that exists in the DB
-// Presenter must activate a room that exists in the DB
-// Presenter must activate a room that exists in the DB
-if (presenter) {
-  // Create the board if it doesn't exist yet (presenter is creating the room)
-  await Board.findOneAndUpdate(
-    { roomId },
-    { $setOnInsert: { roomId, imageUrl: "" } },
-    { upsert: true, new: true }
-  );
-  activeRooms.add(roomId);
-  const board = await Board.findOne({ roomId });
-  if (board?.imageUrl) {
-    roomCanvases[roomId] = board.imageUrl;
-  }
-}
+    if (presenter) {
+      await Board.findOneAndUpdate(
+        { roomId },
+        { $setOnInsert: { roomId, imageUrl: "" } },
+        { upsert: true, new: true }
+      );
+      activeRooms.add(roomId);
+      const board = await Board.findOne({ roomId });
+      if (board?.imageUrl) roomCanvases[roomId] = board.imageUrl;
+    }
 
-// Joiners can only join rooms the presenter has activated
-if (!presenter && !activeRooms.has(roomId)) {
-  socket.emit("error", "Room does not exist or has ended");
-  return;
-}
+    if (!presenter && !activeRooms.has(roomId)) {
+      socket.emit("error", "Room does not exist or has ended");
+      return;
+    }
 
     socket.userRoom  = roomId;
     socket.presenter = presenter;
@@ -78,18 +70,15 @@ if (!presenter && !activeRooms.has(roomId)) {
       socket.emit("canvasImage", roomCanvases[roomId]);
     } else {
       const board = await Board.findOne({ roomId });
-      if (board && board.imageUrl) {
+      if (board?.imageUrl) {
         roomCanvases[roomId] = board.imageUrl;
         socket.emit("canvasImage", board.imageUrl);
       }
     }
 
     socket.emit("message", { message: "Welcome to the room!" });
-    socket.broadcast.to(roomId).emit("message", {
-      message: `${resolvedName} has joined`,
-    });
-
-    io.to(roomId).emit("users", roomUsers);
+    socket.broadcast.to(roomId).emit("message", { message: `${resolvedName} has joined` });
+    io.to(roomId).emit("users", roomUsers); // ✅ broadcast to ALL in room including sender
   });
 
   socket.on("drawing", (data) => {
@@ -103,11 +92,7 @@ if (!presenter && !activeRooms.has(roomId)) {
     const roomId = socket.userRoom;
     if (!roomId) return;
     roomCanvases[roomId] = data;
-    await Board.findOneAndUpdate(
-      { roomId },
-      { imageUrl: data },
-      { upsert: true }
-    );
+    await Board.findOneAndUpdate({ roomId }, { imageUrl: data }, { upsert: true });
   });
 
   socket.on("clear", async () => {
@@ -122,10 +107,7 @@ if (!presenter && !activeRooms.has(roomId)) {
     const roomId = socket.userRoom;
     if (!roomId) return;
     socket.broadcast.to(roomId).emit("cursor-move", {
-      socketId: socket.id,
-      x:        data.x,
-      y:        data.y,
-      username: data.username,
+      socketId: socket.id, x: data.x, y: data.y, username: data.username,
     });
   });
 
@@ -134,25 +116,22 @@ if (!presenter && !activeRooms.has(roomId)) {
     if (!roomId) return;
     socket.broadcast.to(roomId).emit("cursor-leave", { socketId: socket.id });
   });
-  
+
   socket.on("get-users", () => {
-  const roomId = socket.userRoom;
-  if (!roomId) return;
-  socket.emit("users", getUsers(roomId));
-});
+    const roomId = socket.userRoom;
+    if (!roomId) return;
+    socket.emit("users", getUsers(roomId));
+  });
 
   socket.on("disconnect", () => {
     const roomId   = socket.userRoom;
     const leftUser = userLeave(socket.id);
 
     if (leftUser) {
-      io.to(leftUser.room).emit("message", {
-        message: `${leftUser.username} left the room`,
-      });
+      io.to(leftUser.room).emit("message", { message: `${leftUser.username} left the room` });
       io.to(leftUser.room).emit("users", getUsers(leftUser.room));
-    } 
+    }
 
-    // If presenter leaves, close the room for everyone
     if (roomId && socket.presenter) {
       activeRooms.delete(roomId);
       delete roomCanvases[roomId];
@@ -169,8 +148,6 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB Connected");
-    server.listen(PORT, () =>
-      console.log(`Server running on http://localhost:${PORT}`)
-    );
+    server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
   })
   .catch((err) => console.error(err));
