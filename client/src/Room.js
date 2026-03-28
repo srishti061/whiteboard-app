@@ -11,13 +11,19 @@ const Room = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTheme })
   const [history, setHistory]   = useState([]);
   const [tool, setTool]         = useState("pencil");
 
-  useEffect(() => {
-    socket.on("message", (d) => toast.info(d.message));
-  }, []);
+// With this:
+useEffect(() => {
+  socket.on("error", (msg) => {
+    toast.error(msg);
+    socket.disconnect();
+  });
+  return () => socket.off("error");
+}, []);
 
   useEffect(() => {
-    socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
-  }, []);
+  socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
+  return () => socket.off("users"); // 👈 add this
+}, []);
 
   const clearCanvas = () => {
     setElements([]);

@@ -18,6 +18,13 @@ const connectionOptions = {
 
 const socket = io(server, connectionOptions);
 
+// ── Clear stale joiner session BEFORE component (sync, outside render) ──────
+const savedRoom  = sessionStorage.getItem("roomUser");
+const parsedRoom = savedRoom ? JSON.parse(savedRoom) : null;
+if (parsedRoom && !parsedRoom.presenter) {
+  sessionStorage.removeItem("roomUser");
+}
+
 const App = () => {
   const [userNo, setUserNo] = useState(0);
   const [users, setUsers]   = useState([]);
@@ -25,49 +32,52 @@ const App = () => {
     () => !!localStorage.getItem("token")
   );
 
-  // ── Restore room session on refresh ──────────────────────────────────────
-  const savedRoom  = sessionStorage.getItem("roomUser");
-  const parsedRoom = savedRoom ? JSON.parse(savedRoom) : null;
+  // Only restore session for presenters
+  const restoredRoom = parsedRoom?.presenter ? parsedRoom : null;
+  const [user, setUser]             = useState(restoredRoom || {});
+  const [roomJoined, setRoomJoined] = useState(!!restoredRoom);
 
-  const [user, setUser]             = useState(parsedRoom || {});
-  const [roomJoined, setRoomJoined] = useState(!!parsedRoom);
-
-  // ── Theme ─────────────────────────────────────────────────────────────────
+  // ── Theme ──────────────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(
     () => localStorage.getItem("theme") || "dark"
   );
-
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("theme", theme);
   }, [theme]);
-
   const toggleTheme = () =>
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
 
-  // ── UUID generator ────────────────────────────────────────────────────────
+  // ── UUID generator ─────────────────────────────────────────────────────────
   const uuid = () => {
     const S4 = () =>
       (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
     return `${S4()}${S4()}-${S4()}-${S4()}-${S4()}-${S4()}${S4()}${S4()}`;
   };
 
-  // ── Socket: join room ─────────────────────────────────────────────────────
+  // ── Socket: emit user-joined ONLY for presenters ───────────────────────────
   useEffect(() => {
     if (!roomJoined) return;
+    if (!user?.presenter) return; // joiners handle their own emit in JoinCreateRoom
+
     const token = localStorage.getItem("token");
     if (!token) {
-      alert("Please login first");
+      toast.error("Please login first");
       setRoomJoined(false);
       return;
     }
     socket.emit("user-joined", { ...user, userName: user.name, token });
-  }, [roomJoined]);
+  }, [roomJoined, user]); // ✅ depend on user too so it reads latest value 
 
-  // ── Socket: error handling ────────────────────────────────────────────────
+  useEffect(() => {
+  socket.on("message", (d) => toast.info(d.message));
+  return () => socket.off("message");
+}, []);
+
+  // ── Socket: error handling ─────────────────────────────────────────────────
   useEffect(() => {
     socket.on("error", (msg) => {
-      alert(msg);
+      toast.error(msg);
       if (msg === "Unauthorized") {
         localStorage.removeItem("token");
         setIsLoggedIn(false);
@@ -97,12 +107,12 @@ const App = () => {
           setUser={setUser}
           theme={theme}
           toggleTheme={toggleTheme}
+          socket={socket}
         />
 
       ) : (
         <>
           <Sidebar users={users} user={user} socket={socket} />
-
           {user.presenter ? (
             <Room
               userNo={userNo}

@@ -23,11 +23,8 @@ const ClientRoom = ({ userNo, user, socket, setUsers, setUserNo, theme, toggleTh
 };
 
   useEffect(() => {
-    socket.on("message", (d) => toast.info(d.message));
-  }, []);
-
-  useEffect(() => {
     socket.on("users", (d) => { setUsers(d); setUserNo(d.length); });
+    return () => socket.off("users");
   }, []);
 
   useEffect(() => {

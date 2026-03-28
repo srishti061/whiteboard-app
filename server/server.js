@@ -11,7 +11,7 @@ const Board      = require("./models/Board");
 
 const app    = express();
 const server = http.createServer(app);
-const FRONTEND_URL = "https://whiteboard-app-snowy.vercel.app"; // no trailing slash
+const FRONTEND_URL = "https://whiteboard-app-snowy.vercel.app";
 
 const PORT = process.env.PORT || 5000;
 
@@ -19,7 +19,6 @@ const io = require("socket.io")(server, {
   cors: { origin: FRONTEND_URL, methods: ["GET", "POST"] },
 });
 
-// ONE cors call only, before routes
 app.use(cors({
   origin: FRONTEND_URL,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -30,13 +29,13 @@ app.use("/api/auth", authRoutes);
 app.get("/", (_, res) => res.send("server"));
 
 const roomCanvases = {};
+const activeRooms  = new Set();
 
 io.on("connection", (socket) => {
 
   socket.on("user-joined", async (data) => {
-    // ✅ Accept both `userName` and `name` as fallback
     const { roomId, userName, name, host, presenter, token } = data;
-    const resolvedName = userName || name || "Guest";   // ← fallback chain
+    const resolvedName = userName || name || "Guest";
 
     try {
       jwt.verify(token, process.env.JWT_SECRET);
@@ -44,6 +43,27 @@ io.on("connection", (socket) => {
       socket.emit("error", "Unauthorized");
       return;
     }
+
+    // Presenter must activate a room that exists in the DB
+// Presenter must activate a room that exists in the DB
+if (presenter) {
+  const board = await Board.findOne({ roomId });
+  if (!board) {
+    socket.emit("error", "Room does not exist");
+    return;
+  }
+  activeRooms.add(roomId);
+  // Cache canvas immediately so the second DB call is skipped below
+  if (board.imageUrl) {
+    roomCanvases[roomId] = board.imageUrl;
+  }
+}
+
+// Joiners can only join rooms the presenter has activated
+if (!presenter && !activeRooms.has(roomId)) {
+  socket.emit("error", "Room does not exist or has ended");
+  return;
+}
 
     socket.userRoom  = roomId;
     socket.presenter = presenter;
@@ -67,7 +87,6 @@ io.on("connection", (socket) => {
       message: `${resolvedName} has joined`,
     });
 
-    // ✅ Emit updated user list to ALL in room (including new joiner)
     io.to(roomId).emit("users", roomUsers);
   });
 
@@ -123,6 +142,13 @@ io.on("connection", (socket) => {
         message: `${leftUser.username} left the room`,
       });
       io.to(leftUser.room).emit("users", getUsers(leftUser.room));
+    }
+
+    // If presenter leaves, close the room for everyone
+    if (roomId && socket.presenter) {
+      activeRooms.delete(roomId);
+      delete roomCanvases[roomId];
+      io.to(roomId).emit("error", "Host has left the room");
     }
 
     if (roomId) {

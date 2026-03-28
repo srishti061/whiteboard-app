@@ -6,6 +6,7 @@ const JoinCreateRoom = ({
   setUser,
   theme,
   toggleTheme,
+  socket,
 }) => {
   const [roomId, setRoomId] = useState(uuid());
   const [name, setName] = useState("");
@@ -23,10 +24,32 @@ const JoinCreateRoom = ({
   const handleJoin = () => {
     if (!joinName.trim()) return alert("Please enter your name");
     if (!joinRoomId.trim()) return alert("Please enter a Room ID");
+
+    const token = localStorage.getItem("token");
     const user = { name: joinName, roomId: joinRoomId, presenter: false };
-    sessionStorage.setItem("roomUser", JSON.stringify(user));
-    setUser(user);
-    setRoomJoined(true);
+
+    const onMessage = (d) => {
+      if (d.message === "Welcome to the room!") {
+        socket.off("error", onError); // ✅ clean up error listener
+        sessionStorage.setItem("roomUser", JSON.stringify(user));
+        setUser(user);
+        setRoomJoined(true);
+      }
+    };
+
+    const onError = () => {
+      socket.off("message", onMessage); // ✅ clean up message listener
+    };
+
+    socket.once("message", onMessage);
+    socket.once("error", onError); // ✅ remove message listener if error fires
+
+    socket.emit("user-joined", {
+      ...user,
+      userName: user.name,
+      host: false,
+      token,
+    });
   };
 
   const handleCopy = () => {
